@@ -6,9 +6,18 @@ import { prisma } from '../db.js'
 import { hashPassword } from '../lib/password.js'
 
 const databaseUrl = process.env.DATABASE_URL ?? ''
-if (!/test/i.test(databaseUrl)) {
+
+function databaseName(url: string) {
+  try {
+    return new URL(url).pathname.replace(/^\//, '')
+  } catch {
+    return ''
+  }
+}
+
+if (!/test/i.test(databaseName(databaseUrl))) {
   throw new Error(
-    'Refusing to run tests: DATABASE_URL must point to a dedicated test database (name must contain "test").',
+    'Refusing to run tests: DATABASE_URL must point to a dedicated test database (database name must contain "test").',
   )
 }
 
@@ -172,6 +181,12 @@ describe('MajitKirana API', () => {
       .expect(201)
     assert.equal(replayed.body.data.id, orderId)
 
+    const stolen = await otherCustomer
+      .post('/api/v1/orders/request')
+      .send({ listText: '2 kilo chini', idempotencyKey: 'test-list-request-1' })
+      .expect(409)
+    assert.equal(stolen.body.error.code, 'IDEMPOTENCY_CONFLICT')
+
     const quoted = await owner
       .patch(`/api/v1/admin/orders/${orderId}/quote`)
       .send({ items: [{ productId: sugarId, quantity: 2 }], billNote: 'Aaj ka rate' })
@@ -203,6 +218,41 @@ describe('MajitKirana API', () => {
     assert.match(html.text, new RegExp(receiptNumber))
   })
 
+  it('supports loose-weight lines with a line total', async () => {
+    const created = await customer
+      .post('/api/v1/orders/request')
+      .send({ listText: 'dedh kilo chini', idempotencyKey: 'test-loose-weight-1' })
+      .expect(201)
+
+    const quoted = await owner
+      .patch(`/api/v1/admin/orders/${created.body.data.id}/quote`)
+      .send({
+        items: [
+          {
+            productId: sugarId,
+            quantity: 1,
+            quantityText: '1.5 kg',
+            pricePaise: 4500,
+            lineTotalPaise: 6750,
+          },
+        ],
+      })
+      .expect(200)
+
+    assert.equal(quoted.body.data.totalPaise, 6750)
+    assert.equal(quoted.body.data.items[0].unitPricePaise, 4500)
+    assert.equal(quoted.body.data.items[0].lineTotalPaise, 6750)
+    assert.equal(quoted.body.data.items[0].quantityText, '1.5 kg')
+
+    const receipt = await customer
+      .get(`/api/v1/orders/${created.body.data.id}/receipt`)
+      .expect(200)
+    assert.equal(receipt.body.data.totalPaise, 6750)
+    assert.match(receipt.body.data.html, /1\.5 kg/)
+
+    await customer.post(`/api/v1/orders/${created.body.data.id}/cancel`).send({}).expect(200)
+  })
+
   it('takes a UPI payment and lets the owner verify it', async () => {
     const before = await customer.get(`/api/v1/orders/${orderId}/payment`).expect(200)
     assert.equal(before.body.data.billReady, true)
@@ -228,9 +278,10 @@ describe('MajitKirana API', () => {
 
     const submitted = await customer
       .post(`/api/v1/orders/${orderId}/payments/upi`)
-      .send({ utrReference: UTR })
+      .send({ utrReference: UTR.toLowerCase() })
       .expect(201)
     paymentId = submitted.body.data.payment.id
+    assert.equal(submitted.body.data.payment.utrReference, UTR)
     assert.equal(submitted.body.data.order.paymentStatus, 'AWAITING_VERIFICATION')
 
     const duplicate = await customer
@@ -292,8 +343,26 @@ describe('MajitKirana API', () => {
       .expect(503)
   })
 
+  it('returns 4xx for malformed and oversized bodies', async () => {
+    const malformed = await request(app)
+      .post('/api/v1/customer/session')
+      .set('content-type', 'application/json')
+      .send('{bad')
+      .expect(400)
+    assert.equal(malformed.body.error.code, 'INVALID_JSON')
+
+    const big = await request(app)
+      .post('/api/v1/customer/session')
+      .send({ name: 'Big', phone: '9999999997', pad: 'a'.repeat(1_100_000) })
+      .expect(413)
+    assert.equal(big.body.error.code, 'PAYLOAD_TOO_LARGE')
+  })
+
   it('enforces authz and validation', async () => {
     await otherCustomer.get(`/api/v1/orders/${orderId}/receipt`).expect(404)
+    await otherCustomer.get(`/api/v1/orders/${orderId}/bill`).expect(404)
+    await otherCustomer.get(`/api/v1/orders/${orderId}/payment`).expect(404)
+    await otherCustomer.get(`/api/v1/orders/${orderId}`).expect(404)
     await owner
       .post('/api/v1/orders/request')
       .send({ listText: '2 chini' })

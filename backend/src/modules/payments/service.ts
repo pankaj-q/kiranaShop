@@ -201,7 +201,7 @@ export async function submitUpiPayment(orderId: string, userId: string, utrRefer
 
   const duplicate = await prisma.payment.findFirst({
     where: {
-      utrReference,
+      utrReference: { equals: utrReference, mode: 'insensitive' },
       status: { not: 'REJECTED' },
     },
     select: { id: true },

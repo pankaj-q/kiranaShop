@@ -15,7 +15,8 @@ export const submitUpiPaymentSchema = z.object({
     .trim()
     .min(6, 'UTR kam se kam 6 characters ka hona chahiye')
     .max(50)
-    .regex(/^[A-Za-z0-9]+$/, 'UTR me sirf letters aur numbers chalenge'),
+    .regex(/^[A-Za-z0-9]+$/, 'UTR me sirf letters aur numbers chalenge')
+    .transform((value) => value.toUpperCase()),
 })
 
 export const verifyPaymentSchema = z.object({

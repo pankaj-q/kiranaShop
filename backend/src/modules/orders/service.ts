@@ -121,7 +121,12 @@ async function createOrderRow(
           where: { idempotencyKey },
           include: orderInclude,
         })
-        if (existing) return existing
+        if (existing) {
+          if (existing.userId !== data.userId) {
+            throw new AppError(409, 'IDEMPOTENCY_CONFLICT', 'Yeh request pehle use ho chuki hai')
+          }
+          return existing
+        }
       }
       // Otherwise a duplicate order number — try again.
     }
@@ -365,6 +370,7 @@ type QuoteItem = {
   quantity: number
   quantityText?: string
   pricePaise?: number
+  lineTotalPaise?: number
 }
 
 /** Owner turns a REQUESTED list into a bill (PLACED). */
@@ -414,11 +420,15 @@ export async function quoteOrder(
       quantityText: item.quantityText ?? null,
       unitPricePaise: pricePaise,
       quantity: item.quantity,
-      lineTotalPaise: pricePaise * item.quantity,
+      lineTotalPaise: item.lineTotalPaise ?? pricePaise * item.quantity,
     }
   })
 
   const totalPaise = prepared.reduce((sum, item) => sum + item.lineTotalPaise, 0)
+
+  if (totalPaise > 2_147_483_647) {
+    throw new AppError(400, 'BILL_TOO_LARGE', 'Bill ki total value bahut zyada hai')
+  }
 
   return prisma.$transaction(async (tx) => {
     await tx.orderItem.deleteMany({ where: { orderId: id } })

@@ -107,13 +107,16 @@ export async function listProducts(params: {
       ...(categoryFilter ? { category: categoryFilter } : {}),
     },
     include: { category: { select: { id: true, name: true, slug: true, isActive: true } } },
-    orderBy: { name: 'asc' },
+    orderBy: [{ name: 'asc' }, { unit: 'asc' }],
   })
 
   const matched = query ? products.filter((product) => matchesQuery(product.searchName, query)) : products
   const sorted = query
     ? [...matched].sort(
-        (a, b) => scoreProduct(a, query) - scoreProduct(b, query) || a.name.localeCompare(b.name),
+        (a, b) =>
+          scoreProduct(a, query) - scoreProduct(b, query) ||
+          a.name.localeCompare(b.name) ||
+          a.unit.localeCompare(b.unit),
       )
     : matched
 

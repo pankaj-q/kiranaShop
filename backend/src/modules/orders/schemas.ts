@@ -34,6 +34,8 @@ export const quoteItemSchema = z.object({
   quantity: z.number().int().min(1).max(99).default(1),
   quantityText: z.string().trim().min(1).max(30).optional(),
   pricePaise: z.number().int().positive().max(10_000_000).optional(),
+  /** Override for loose weight, e.g. 1.5 kg × ₹45 = 6750 paise. */
+  lineTotalPaise: z.number().int().positive().max(2_000_000_000).optional(),
 })
 
 export const quoteOrderSchema = z.object({

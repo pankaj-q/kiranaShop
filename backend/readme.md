@@ -60,7 +60,8 @@ npm test
 - Tests **refuse to run** unless the database name contains `test`.
 - They truncate only the test database before and after the run.
 - Override with `TEST_DATABASE_URL` or `TEST_SESSION_SECRET` if needed.
-- Currently 11 integration tests; `npm test` is sequential by design.
+- Currently 17 tests (13 API integration + 4 IST/date unit); `npm test` is
+  sequential by design.
 
 ## Layout
 
@@ -95,7 +96,7 @@ src/
 | users | customer + owner accounts, phone unique, scrypt password |
 | sessions | opaque session tokens (hashed), expiry |
 | categories | catalogue categories |
-| products | ~400 SKUs, aliases[] for chini/tel search, image URL |
+| products | 216 starter SKUs, aliases[] for chini/tel search, image URL |
 | orders | order number, idempotency key, raw list, bill note, snapshots, status, paise totals |
 | order_items | bill snapshots (name/unit/price/quantity text) |
 | order_events | audit trail for every status change |
@@ -117,7 +118,8 @@ Money is integer **paise**. Timestamps are UTC; business rules use `Asia/Kolkata
 | `GET /api/v1/customer/me` | Current customer |
 
 Sessions are opaque 32-byte tokens, stored as SHA-256 hashes in `sessions`, sent
-in the `mk_session` cookie (HttpOnly, SameSite=Lax, Secure in production, 30 days).
+in the `mk_session` cookie (HttpOnly, SameSite=Lax in development, SameSite=None
++ Secure in production for the split Pages/Render setup, 30 days).
 Auth endpoints are limited to 10 requests/minute per IP. Owner passwords use
 Node's built-in scrypt.
 
@@ -244,7 +246,7 @@ returns `409 INVALID_STATUS_TRANSITION` with the allowed list.
 {
   "items": [
     { "productId": "...", "quantity": 2 },
-    { "productId": "...", "quantity": 1, "quantityText": "1.5 kg", "pricePaise": 6750 },
+    { "productId": "...", "quantity": 1, "quantityText": "1.5 kg", "pricePaise": 4500, "lineTotalPaise": 6750 },
     { "name": "Doodh", "unit": "500 ml", "quantity": 2, "pricePaise": 3000 }
   ],
   "billNote": "Sugar aaj ₹45/kg"
@@ -253,7 +255,9 @@ returns `409 INVALID_STATUS_TRANSITION` with the allowed list.
 
 - `productId` uses the DB name/unit/price; `pricePaise` may override it.
 - Custom lines need `name`, `unit`, `pricePaise`.
-- Loose weight: send `quantity: 1` + `quantityText: "1.5 kg"`.
+- Loose weight: send `quantity: 1` + `quantityText: "1.5 kg"` + the exact
+  `lineTotalPaise` (e.g. 1.5 kg × ₹45 = `6750`), so the receipt shows the right
+  rate and amount.
 - Re-quoting `PLACED` replaces the old bill and increments `version`.
 - `GET /orders/:id/bill` returns `billText` and a `wa.me` link addressed to the
   shop; the owner's variant links to the customer's phone. Sending is a free
@@ -288,6 +292,9 @@ UPI can only start after a bill exists (`PLACED` or later).
 | `GET /api/v1/settings` | Public store info incl. `upiId` |
 | `GET /api/v1/admin/settings` | Full store settings |
 | `PATCH /api/v1/admin/settings` | Update `upiId`, store name, phone, hours, `pickupNote`, `manualClosed` |
+
+`manualClosed` is a storefront banner flag for the frontend; orders are still
+accepted 24/7 and scheduled by the opening hours above.
 
 Customer (session required):
 
@@ -339,7 +346,8 @@ Owner only:
 - Payment is allowed for `PLACED`, `ACCEPTED`, `PREPARING`, `READY_FOR_PICKUP`
   and `COMPLETED`. `REQUESTED`, `CANCELLED` and `REJECTED` cannot be paid.
 - `REQUESTED` (no bill yet) → `409 BILL_NOT_READY`.
-- UTR: 6–50 letters/numbers, unique across all non-rejected payments.
+- UTR: 6–50 letters/numbers, stored uppercase, unique across all non-rejected
+  payments.
 - Only one pending UPI payment per order (`409 PAYMENT_PENDING` otherwise).
 - Owner verification can lower the amount (part payment). `amountPaise` must
   not exceed the remaining due.
@@ -406,6 +414,9 @@ VAPID_SUBJECT="mailto:owner@example.com"
 
 Success: `{ "data": ... }`
 Error: `{ "error": { "code", "message", "details?", "requestId?" } }`
+
+Malformed JSON returns `400 INVALID_JSON`; bodies over 1 MB return
+`413 PAYLOAD_TOO_LARGE`.
 
 Every response carries an `x-request-id` header.
 

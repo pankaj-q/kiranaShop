@@ -31,7 +31,8 @@ export function normalizePhone(input: string) {
 export function setSessionCookie(res: Response, token: string, expiresAt: Date) {
   res.cookie(SESSION_COOKIE, token, {
     httpOnly: true,
-    sameSite: 'lax',
+    // The frontend may live on a different site (Cloudflare Pages + Render API).
+    sameSite: config.isProd ? 'none' : 'lax',
     secure: config.isProd,
     expires: expiresAt,
     path: '/',
@@ -41,7 +42,7 @@ export function setSessionCookie(res: Response, token: string, expiresAt: Date) 
 export function clearSessionCookie(res: Response) {
   res.clearCookie(SESSION_COOKIE, {
     httpOnly: true,
-    sameSite: 'lax',
+    sameSite: config.isProd ? 'none' : 'lax',
     secure: config.isProd,
     path: '/',
   })
