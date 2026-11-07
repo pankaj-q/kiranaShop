@@ -1,0 +1,20 @@
+services:
+  db:
+    image: postgres:18
+    container_name: majitkirana-db
+    environment:
+      POSTGRES_USER: majit
+      POSTGRES_PASSWORD: majit
+      POSTGRES_DB: majitkirana
+    ports:
+      - "5433:5432"
+    volumes:
+      - majit_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U majit -d majitkirana"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  majit_pgdata:
