@@ -2,5 +2,5 @@ import pino from 'pino'
 import { config } from '../config.js'
 
 export const logger = pino({
-  level: config.isProd ? 'info' : 'debug',
+  level: config.isTest ? 'silent' : config.isProd ? 'info' : 'debug',
 })

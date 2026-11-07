@@ -27,6 +27,7 @@ if (!parsed.success) {
 export const config = Object.freeze({
   env: parsed.data.NODE_ENV,
   isProd: parsed.data.NODE_ENV === 'production',
+  isTest: parsed.data.NODE_ENV === 'test',
   port: parsed.data.PORT,
   appOrigin: parsed.data.APP_ORIGIN,
   databaseUrl: parsed.data.DATABASE_URL,

@@ -23,6 +23,10 @@ npm run dev               # http://localhost:4000/api/v1/healthz
 ```
 
 Owner login defaults used by the seed: `ADMIN_LOGIN` / `ADMIN_PASSWORD` from `.env`.
+The same seed adds a starter catalogue of 216 common kirana products with
+Hinglish aliases and placeholder images. Prices are rough starting values — the
+owner should review them in the admin panel. Re-running the seed only adds
+missing rows, so owner edits are never overwritten.
 
 ## Scripts
 
@@ -32,10 +36,31 @@ Owner login defaults used by the seed: `ADMIN_LOGIN` / `ADMIN_PASSWORD` from `.e
 | `npm run build` | Generate Prisma client + compile to `dist/` |
 | `npm start` | Run compiled build |
 | `npm run typecheck` | Type check without emitting |
+| `npm test` | Integration tests against a dedicated test database |
+| `npm run test:prepare` | Apply migrations to the test database |
 | `npm run db:generate` | Regenerate Prisma client |
 | `npm run db:migrate` | Create/apply a dev migration |
 | `npm run db:deploy` | Apply migrations in production |
-| `npm run db:seed` | Seed store settings + owner |
+| `npm run db:seed` | Seed store, owner and starter catalogue |
+
+## Tests
+
+The suite uses Node's test runner + `supertest` against the real Express app and
+Postgres. It covers auth, catalogue/search, list parsing, request → quote → bill,
+receipts, UPI verification, ready transitions and authz.
+
+```bash
+# one-time: create the test database
+docker exec majitkirana-db createdb -U majit majitkirana_test
+
+npm run test:prepare      # apply migrations to majitkirana_test
+npm test
+```
+
+- Tests **refuse to run** unless the database name contains `test`.
+- They truncate only the test database before and after the run.
+- Override with `TEST_DATABASE_URL` or `TEST_SESSION_SECRET` if needed.
+- Currently 11 integration tests; `npm test` is sequential by design.
 
 ## Layout
 
@@ -43,7 +68,8 @@ Owner login defaults used by the seed: `ADMIN_LOGIN` / `ADMIN_PASSWORD` from `.e
 prisma/
   schema.prisma            10 models, 5 enums
   migrations/              SQL migrations
-  seed.ts                  store settings + owner (idempotent)
+  catalogue.ts             starter catalogue (216 SKUs, rupee prices)
+  seed.ts                  store + owner + catalogue (idempotent)
 prisma7.config.ts          Prisma 7 config (schema, migrations, seed)
 src/
   index.ts                 boot + graceful shutdown
@@ -54,6 +80,8 @@ src/
   middleware/
     requestLogger.ts       request id + one log line per request
     error.ts               AppError, 404, central error handler
+  tests/
+    api.test.ts            end-to-end API integration tests
   lib/
     logger.ts              pino logger
     password.ts            scrypt hash/verify (owner password)
@@ -115,10 +143,11 @@ Owner only (cookie from `/admin/login`):
 | `PATCH /api/v1/admin/products/:id` | Update any field, incl. `isAvailable` |
 | `POST /api/v1/admin/products/import` | Import CSV (`{ "csv": "..." }`), upsert by category+name+unit |
 
-Search matches `searchName` (product name + aliases, lowercased) and ranks exact →
-prefix → contains. `chini` → Sugar, `tel` → Mustard Oil, `aata` → Aatta. Inactive
-categories are hidden publicly; unavailable products stay listed with
-`isAvailable: false`. Prices are paise (`4500` = ₹45).
+Search matches `searchName` (product name + aliases, lowercased) word-wise: every
+query word must prefix a word in the search name, so `chini` → Sugar but not
+`dalchini` → Cinnamon. Results rank exact → prefix → contains. `tel` → Mustard
+Oil, `aata` → Aatta. Inactive categories are hidden publicly; unavailable
+products stay listed with `isAvailable: false`. Prices are paise (`4500` = ₹45).
 
 CSV columns: `name, category, unit, price` (rupees), optional `aliases`
 (`|` or `;` separated), `image_url`, `description`. Missing image falls back to
@@ -388,4 +417,4 @@ Every response carries an `x-request-id` header.
 
 B1 skeleton (done) → B2 database (done) → B3 auth (done) → B4 catalogue (done) →
 B5 cart/pricing (done) → B6 structured orders (done) → B6.5 text-list flow (done) →
-B7 payments (done) → B8 receipts/push (done) → B9 tests & seed.
+B7 payments (done) → B8 receipts/push (done) → B9 tests & seed (done).

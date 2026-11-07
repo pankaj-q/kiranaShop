@@ -1,5 +1,6 @@
 import { prisma } from '../src/db.js'
 import { hashPassword } from '../src/lib/password.js'
+import { seedCatalogue } from './catalogue.js'
 
 const adminLogin = process.env.ADMIN_LOGIN
 const adminPassword = process.env.ADMIN_PASSWORD
@@ -9,7 +10,41 @@ if (!adminLogin || !adminPassword) {
   process.exit(1)
 }
 
+function slugify(name: string) {
+  return (
+    name
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '') || 'category'
+  )
+}
+
+function searchNameFor(name: string, aliases: string[]) {
+  return [name, ...aliases].join(' ').toLowerCase().replace(/\s+/g, ' ').trim()
+}
+
+function assertSeedDataIsClean() {
+  const categories = new Set<string>()
+  const products = new Set<string>()
+
+  for (const group of seedCatalogue) {
+    if (categories.has(group.name)) {
+      throw new Error(`Duplicate seed category: ${group.name}`)
+    }
+    categories.add(group.name)
+
+    for (const [name, unit] of group.items) {
+      const key = `${group.name}|${name}|${unit}`
+      if (products.has(key)) throw new Error(`Duplicate seed product: ${key}`)
+      products.add(key)
+    }
+  }
+}
+
 async function main() {
+  assertSeedDataIsClean()
+
   await prisma.storeSettings.upsert({
     where: { id: 'singleton' },
     update: {},
@@ -46,7 +81,49 @@ async function main() {
     },
   })
 
+  const before = await prisma.product.count()
+
+  for (const group of seedCatalogue) {
+    // `update: {}` keeps owner edits (prices, aliases, availability) intact.
+    const category = await prisma.category.upsert({
+      where: { name: group.name },
+      update: {},
+      create: {
+        name: group.name,
+        slug: slugify(group.name),
+        displayOrder: group.displayOrder,
+        isActive: true,
+      },
+    })
+
+    for (const [name, unit, priceRupees, aliases = []] of group.items) {
+      await prisma.product.upsert({
+        where: {
+          categoryId_name_unit: {
+            categoryId: category.id,
+            name,
+            unit,
+          },
+        },
+        update: {},
+        create: {
+          categoryId: category.id,
+          name,
+          searchName: searchNameFor(name, aliases),
+          aliases,
+          unit,
+          pricePaise: Math.round(priceRupees * 100),
+          imageUrl: '/images/placeholder.png',
+          imageSource: 'SEEDED',
+          isAvailable: true,
+        },
+      })
+    }
+  }
+
+  const after = await prisma.product.count()
   console.log(`Seeded store settings and owner ${owner.phone}`)
+  console.log(`Catalogue: ${after - before} new products added, ${after} products total`)
 }
 
 main()

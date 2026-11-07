@@ -43,6 +43,13 @@ function scoreProduct(product: { name: string; aliases: string[] }, query: strin
   return 3
 }
 
+/** Word-aware match so "chini" finds Sugar but not "dalchini" (Cinnamon). */
+function matchesQuery(searchName: string, query: string) {
+  const words = searchName.split(' ').filter(Boolean)
+  const tokens = query.split(' ').filter(Boolean)
+  return tokens.every((token) => words.some((word) => word.startsWith(token)))
+}
+
 export async function listCategories(publicOnly: boolean) {
   return prisma.category.findMany({
     where: publicOnly ? { isActive: true } : {},
@@ -98,17 +105,17 @@ export async function listProducts(params: {
   const products = await prisma.product.findMany({
     where: {
       ...(categoryFilter ? { category: categoryFilter } : {}),
-      ...(query ? { searchName: { contains: query } } : {}),
     },
     include: { category: { select: { id: true, name: true, slug: true, isActive: true } } },
     orderBy: { name: 'asc' },
   })
 
+  const matched = query ? products.filter((product) => matchesQuery(product.searchName, query)) : products
   const sorted = query
-    ? [...products].sort(
+    ? [...matched].sort(
         (a, b) => scoreProduct(a, query) - scoreProduct(b, query) || a.name.localeCompare(b.name),
       )
-    : products
+    : matched
 
   const total = sorted.length
   const start = (params.page - 1) * params.limit
