@@ -78,7 +78,7 @@ model Session {
 
 model Category {
   id           String   @id @default(cuid())
-  name         String
+  name         String   @unique
   slug         String   @unique
   displayOrder Int      @default(0) @map("display_order")
   isActive     Boolean  @default(true) @map("is_active")
@@ -109,6 +109,7 @@ model Product {
 
   @@index([isAvailable, categoryId])
   @@index([searchName])
+  @@unique([categoryId, name, unit])
   @@map("products")
 }
 

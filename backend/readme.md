@@ -93,7 +93,37 @@ in the `mk_session` cookie (HttpOnly, SameSite=Lax, Secure in production, 30 day
 Auth endpoints are limited to 10 requests/minute per IP. Owner passwords use
 Node's built-in scrypt.
 
+## Catalogue
 
+Public:
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /api/v1/categories` | Active categories + product count |
+| `GET /api/v1/products` | Products; `query`, `category` (slug), `page`, `limit` (max 50) |
+| `GET /api/v1/products/:id` | Single product |
+
+Owner only (cookie from `/admin/login`):
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /api/v1/admin/categories` | All categories, including inactive |
+| `POST /api/v1/admin/categories` | Create (`name`, `displayOrder`, `isActive`) |
+| `PATCH /api/v1/admin/categories/:id` | Update any field |
+| `GET /api/v1/admin/products` | All products; same filters as public |
+| `POST /api/v1/admin/products` | Create (`categoryId`, `name`, `aliases`, `unit`, `pricePaise`, `imageUrl`, …) |
+| `PATCH /api/v1/admin/products/:id` | Update any field, incl. `isAvailable` |
+| `POST /api/v1/admin/products/import` | Import CSV (`{ "csv": "..." }`), upsert by category+name+unit |
+
+Search matches `searchName` (product name + aliases, lowercased) and ranks exact →
+prefix → contains. `chini` → Sugar, `tel` → Mustard Oil, `aata` → Aatta. Inactive
+categories are hidden publicly; unavailable products stay listed with
+`isAvailable: false`. Prices are paise (`4500` = ₹45).
+
+CSV columns: `name, category, unit, price` (rupees), optional `aliases`
+(`|` or `;` separated), `image_url`, `description`. Missing image falls back to
+`/images/placeholder.png`. Import is all-or-nothing; bad rows return `details`
+with row numbers.
 
 ## Response format
 
@@ -108,5 +138,5 @@ Every response carries an `x-request-id` header.
 
 ## Build order
 
-B1 skeleton (done) → B2 database (done) → B3 auth (done) → B4 catalogue →
+B1 skeleton (done) → B2 database (done) → B3 auth (done) → B4 catalogue (done) →
 B5 cart/pricing → B6 orders → B7 payments → B8 receipts/push → B9 tests & seed.
