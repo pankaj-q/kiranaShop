@@ -77,6 +77,23 @@ src/
 
 Money is integer **paise**. Timestamps are UTC; business rules use `Asia/Kolkata`.
 
+## Auth
+
+| Endpoint | Purpose |
+|---|---|
+| `POST /api/v1/admin/login` | Owner login (`login` = phone, `password`) |
+| `POST /api/v1/admin/logout` | Owner logout |
+| `GET /api/v1/admin/me` | Current owner |
+| `POST /api/v1/customer/session` | Create/restore customer session (`name`, `phone`) |
+| `POST /api/v1/customer/logout` | Customer logout |
+| `GET /api/v1/customer/me` | Current customer |
+
+Sessions are opaque 32-byte tokens, stored as SHA-256 hashes in `sessions`, sent
+in the `mk_session` cookie (HttpOnly, SameSite=Lax, Secure in production, 30 days).
+Auth endpoints are limited to 10 requests/minute per IP. Owner passwords use
+Node's built-in scrypt.
+
+
 
 ## Response format
 
@@ -91,5 +108,5 @@ Every response carries an `x-request-id` header.
 
 ## Build order
 
-B1 skeleton (done) → B2 database (done) → B3 auth → B4 catalogue →
+B1 skeleton (done) → B2 database (done) → B3 auth (done) → B4 catalogue →
 B5 cart/pricing → B6 orders → B7 payments → B8 receipts/push → B9 tests & seed.
