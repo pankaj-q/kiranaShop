@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { api, ApiError } from '../lib/api'
 import { useToast } from '../state/toast'
 import NumberedList, { splitList } from '../components/NumberedList'
-import { Send } from 'lucide-react'
+import { Send, ArrowLeft } from 'lucide-react'
 
 export default function NewOrder() {
   const toast = useToast()
@@ -33,6 +33,9 @@ export default function NewOrder() {
 
   return (
     <div className="card" style={{ maxWidth: 640, margin: '0 auto' }}>
+      <button className="btn secondary sm" onClick={() => navigate(-1)} style={{ alignSelf: 'flex-start', marginBottom: 8 }}>
+        <ArrowLeft size={16} /> Wapas
+      </button>
       <h1>Naya order</h1>
       <p style={{ color: 'var(--muted)' }}>
         Jo chahiye wo likhein — jaise "2 kilo chini, 1 litre tel, 500g atta".

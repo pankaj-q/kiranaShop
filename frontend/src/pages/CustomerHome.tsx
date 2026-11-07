@@ -3,7 +3,8 @@ import { Link } from 'react-router-dom'
 import { api } from '../lib/api'
 import { useToast } from '../state/toast'
 import type { Order } from '../lib/types'
-import { money, formatDate } from '../lib/api'
+import { formatDate } from '../lib/api'
+import { splitList } from '../components/NumberedList'
 import { Plus } from 'lucide-react'
 
 const statusLabel: Record<string, string> = {
@@ -25,6 +26,11 @@ const statusBadge: Record<string, string> = {
   COMPLETED: 'success',
   REJECTED: 'danger',
   CANCELLED: 'danger',
+}
+
+function orderTitle(o: Order): string {
+  const first = splitList(o.rawList ?? '')[0]
+  return first ? first.slice(0, 40) : o.orderNumber
 }
 
 export default function CustomerHome() {
@@ -71,23 +77,15 @@ export default function CustomerHome() {
           {orders.map((o) => (
             <Link key={o.id} to={`/orders/${o.id}`} className="list-item">
               <div>
-                <div style={{ fontWeight: 600 }}>{o.orderNumber}</div>
+                <div style={{ fontWeight: 600 }}>{orderTitle(o)}</div>
                 <div style={{ fontSize: 13, color: 'var(--muted)' }}>
                   {formatDate(o.createdAt)} · {o.items.length} items
                 </div>
-                {o.rawList && (
-                  <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 260 }}>
-                    {o.rawList}
-                  </div>
-                )}
               </div>
               <div style={{ textAlign: 'right' }}>
                 <span className={`badge ${statusBadge[o.status] ?? ''}`}>
                   {statusLabel[o.status]}
                 </span>
-                <div style={{ fontWeight: 600, marginTop: 4 }}>
-                  {o.totalPaise > 0 ? money(o.totalPaise) : '—'}
-                </div>
               </div>
             </Link>
           ))}

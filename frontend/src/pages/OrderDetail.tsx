@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import { api, ApiError } from '../lib/api'
 import { useToast } from '../state/toast'
 import type { Order, PaymentOptions, Bill, Receipt } from '../lib/types'
 import { money, formatDate } from '../lib/api'
 import NumberedList from '../components/NumberedList'
-import { X } from 'lucide-react'
+import { ArrowLeft, X, Edit3, Save } from 'lucide-react'
 
 const statusLabel: Record<string, string> = {
   REQUESTED: 'List bheji gayi',
@@ -20,6 +20,7 @@ const statusLabel: Record<string, string> = {
 
 export default function OrderDetail() {
   const { id } = useParams()
+  const navigate = useNavigate()
   const toast = useToast()
   const [order, setOrder] = useState<Order | null>(null)
   const [loading, setLoading] = useState(true)
@@ -28,6 +29,9 @@ export default function OrderDetail() {
   const [paymentOpts, setPaymentOpts] = useState<PaymentOptions | null>(null)
   const [bill, setBill] = useState<Bill | null>(null)
   const [receipt, setReceipt] = useState<Receipt | null>(null)
+  const [editing, setEditing] = useState(false)
+  const [editText, setEditText] = useState('')
+  const [savingEdit, setSavingEdit] = useState(false)
 
   const load = async () => {
     if (!id) return
@@ -35,6 +39,7 @@ export default function OrderDetail() {
     try {
       const o = await api<Order>(`/orders/${id}`)
       setOrder(o)
+      setEditText(o.rawList ?? '')
       const b = await api<Bill>(`/orders/${id}/bill`).catch(() => null)
       setBill(b)
       const p = await api<PaymentOptions>(`/orders/${id}/payment`).catch(() => null)
@@ -50,6 +55,8 @@ export default function OrderDetail() {
     load()
   }, [id])
 
+  const title = order?.rawList ? splitFirst(order.rawList) : order?.orderNumber ?? ''
+
   const cancel = async () => {
     if (!id) return
     try {
@@ -58,6 +65,24 @@ export default function OrderDetail() {
       load()
     } catch (e) {
       toast.show((e as ApiError).message, 'error')
+    }
+  }
+
+  const saveEdit = async () => {
+    if (!id || !editText.trim()) return
+    setSavingEdit(true)
+    try {
+      await api(`/orders/${id}/request`, {
+        method: 'PATCH',
+        body: JSON.stringify({ listText: editText }),
+      })
+      toast.show('List update ho gayi')
+      setEditing(false)
+      load()
+    } catch (e) {
+      toast.show((e as ApiError).message, 'error')
+    } finally {
+      setSavingEdit(false)
     }
   }
 
@@ -91,24 +116,52 @@ export default function OrderDetail() {
   if (!order) return <div className="empty">Order nahi mila</div>
 
   const canCancel = order.status === 'REQUESTED' || order.status === 'PLACED'
+  const canEdit = order.status === 'REQUESTED' || order.status === 'PLACED' || order.status === 'ACCEPTED'
 
   return (
     <div className="stack">
+      <button className="btn secondary sm" onClick={() => navigate(-1)} style={{ alignSelf: 'flex-start' }}>
+        <ArrowLeft size={16} /> Wapas
+      </button>
+
       <div className="card">
         <div className="row between">
           <div>
-            <h1>{order.orderNumber}</h1>
-            <p style={{ color: 'var(--muted)', margin: 0 }}>{formatDate(order.createdAt)}</p>
+            <h1>{title}</h1>
+            <p style={{ color: 'var(--muted)', margin: 0 }}>{order.orderNumber} · {formatDate(order.createdAt)}</p>
           </div>
           <span className={`badge ${order.status === 'READY_FOR_PICKUP' ? 'success' : order.status === 'CANCELLED' || order.status === 'REJECTED' ? 'danger' : 'warn'}`}>
             {statusLabel[order.status]}
           </span>
         </div>
-        {order.rawList && (
+        {order.rawList && !editing && (
           <div style={{ marginTop: 12, padding: 10, background: 'var(--surface-2)', borderRadius: 8 }}>
             <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)', marginBottom: 4 }}>Aapki list</div>
             <NumberedList text={order.rawList} />
           </div>
+        )}
+        {editing && (
+          <div style={{ marginTop: 12 }} className="stack">
+            <textarea className="input" value={editText} onChange={(e) => setEditText(e.target.value)} />
+            <div className="row">
+              <button className="btn" onClick={saveEdit} disabled={savingEdit || !editText.trim()}>
+                <Save size={16} /> {savingEdit ? 'Save...' : 'Save'}
+              </button>
+              <button className="btn secondary" onClick={() => { setEditing(false); setEditText(order.rawList ?? '') }}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+        {canEdit && !editing && (
+          <button className="btn ghost sm" onClick={() => setEditing(true)} style={{ marginTop: 8 }}>
+            <Edit3 size={16} /> List edit karein
+          </button>
+        )}
+        {order.status === 'REQUESTED' && (
+          <p style={{ marginTop: 8, color: 'var(--muted)' }}>
+            Aapki list shop ko bhej di gayi hai. Owner bill bana raha hai.
+          </p>
         )}
         {order.billNote && <p style={{ marginTop: 8 }}>Note: {order.billNote}</p>}
         {order.customerNote && <p style={{ marginTop: 4, color: 'var(--muted)' }}>Aapka note: {order.customerNote}</p>}
@@ -152,14 +205,6 @@ export default function OrderDetail() {
               WhatsApp par bhejein
             </a>
           )}
-        </div>
-      )}
-
-      {order.status === 'REQUESTED' && (
-        <div className="card">
-          <p style={{ color: 'var(--muted)' }}>
-            Owner bill bana raha hai. Thodi der me ready hoga.
-          </p>
         </div>
       )}
 
@@ -225,4 +270,9 @@ export default function OrderDetail() {
       ) : null}
     </div>
   )
+}
+
+function splitFirst(text: string): string {
+  const items = text.replace(/\s*\baur\b\s*/gi, ', ').split(/[\n,;]+/).map((s) => s.trim()).filter(Boolean)
+  return items[0] ?? text.slice(0, 40)
 }

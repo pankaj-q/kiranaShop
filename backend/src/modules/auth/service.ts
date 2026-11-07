@@ -6,7 +6,7 @@ import { verifyPassword } from '../../lib/password.js'
 import { AppError } from '../../middleware/error.js'
 
 export const SESSION_COOKIE = 'mk_session'
-const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000
+const SESSION_TTL_MS = 90 * 24 * 60 * 60 * 1000
 
 export type PublicUser = {
   id: string

@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
-import { useParams } from 'react-router-dom'
-import { api } from '../lib/api'
+import { useNavigate, useParams } from 'react-router-dom'
+import { api, ApiError } from '../lib/api'
 import { useToast } from '../state/toast'
 import type { Order, Product } from '../lib/types'
 import { money, formatDate } from '../lib/api'
-import { ApiError } from '../lib/api'
+import { ArrowLeft } from 'lucide-react'
 import NumberedList from '../components/NumberedList'
 
 type QuoteLine = {
@@ -19,6 +19,7 @@ type QuoteLine = {
 
 export default function OwnerOrderDetail() {
   const { id } = useParams()
+  const navigate = useNavigate()
   const toast = useToast()
   const [order, setOrder] = useState<Order | null>(null)
   const [products, setProducts] = useState<Product[]>([])
@@ -175,23 +176,33 @@ export default function OwnerOrderDetail() {
 
   return (
     <div className="stack">
+      <button className="btn secondary sm" onClick={() => navigate(-1)} style={{ alignSelf: 'flex-start' }}>
+        <ArrowLeft size={16} /> Wapas
+      </button>
+
       <div className="card">
         <div className="row between">
           <div>
             <h1>{order.orderNumber}</h1>
             <p style={{ color: 'var(--muted)', margin: 0 }}>
-              {order.customerNameSnapshot} · {order.phoneSnapshot} · {formatDate(order.createdAt)}
+              {formatDate(order.createdAt)}
             </p>
           </div>
           <span className="badge warn">{order.status}</span>
         </div>
+        <div style={{ marginTop: 12, padding: 10, background: 'var(--primary-soft)', borderRadius: 8 }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--primary-dark)', marginBottom: 2 }}>Customer</div>
+          <div style={{ fontWeight: 700 }}>{order.customerNameSnapshot}</div>
+          <div style={{ fontSize: 13, color: 'var(--muted)' }}>{order.phoneSnapshot}</div>
+        </div>
+      </div>
+
       {order.rawList && (
         <div className="card">
           <h2>Aapki list</h2>
           <NumberedList text={order.rawList} />
         </div>
       )}
-      </div>
 
       {order.items.length > 0 && (
         <div className="card">
