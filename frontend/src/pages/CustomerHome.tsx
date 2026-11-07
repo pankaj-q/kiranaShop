@@ -33,6 +33,11 @@ function orderTitle(o: Order): string {
   return first ? first.slice(0, 40) : o.orderNumber
 }
 
+function itemCount(o: Order): number {
+  if (o.items.length > 0) return o.items.length
+  return splitList(o.rawList ?? '').length
+}
+
 export default function CustomerHome() {
   const toast = useToast()
   const [orders, setOrders] = useState<Order[]>([])
@@ -79,7 +84,7 @@ export default function CustomerHome() {
               <div>
                 <div style={{ fontWeight: 600 }}>{orderTitle(o)}</div>
                 <div style={{ fontSize: 13, color: 'var(--muted)' }}>
-                  {formatDate(o.createdAt)} · {o.items.length} items
+                  {formatDate(o.createdAt)} · {itemCount(o)} items
                 </div>
               </div>
               <div style={{ textAlign: 'right' }}>
