@@ -17,6 +17,15 @@ export function istDateStamp(date = new Date()) {
   return `${year}${String(month + 1).padStart(2, '0')}${String(day).padStart(2, '0')}`
 }
 
+/** Human-readable IST date + time for receipts, e.g. "07/11/2026 20:45 IST". */
+export function istDateTime(date = new Date()) {
+  const shifted = new Date(date.getTime() + IST_OFFSET_MS)
+  const { day, month, year } = istParts(date)
+  const hours = String(shifted.getUTCHours()).padStart(2, '0')
+  const minutes = String(shifted.getUTCMinutes()).padStart(2, '0')
+  return `${String(day).padStart(2, '0')}/${String(month + 1).padStart(2, '0')}/${year} ${hours}:${minutes} IST`
+}
+
 function parseHhMm(value: string) {
   const [hours, minutes] = value.split(':').map(Number)
   return (hours || 0) * 60 + (minutes || 0)

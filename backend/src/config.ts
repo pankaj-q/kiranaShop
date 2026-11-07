@@ -9,6 +9,9 @@ const envSchema = z.object({
   APP_ORIGIN: z.url().default('http://localhost:5173'),
   DATABASE_URL: z.string().min(1),
   SESSION_SECRET: z.string().min(16),
+  VAPID_PUBLIC_KEY: z.string().optional(),
+  VAPID_PRIVATE_KEY: z.string().optional(),
+  VAPID_SUBJECT: z.string().optional(),
 })
 
 const parsed = envSchema.safeParse(process.env)
@@ -28,4 +31,7 @@ export const config = Object.freeze({
   appOrigin: parsed.data.APP_ORIGIN,
   databaseUrl: parsed.data.DATABASE_URL,
   sessionSecret: parsed.data.SESSION_SECRET,
+  vapidPublicKey: parsed.data.VAPID_PUBLIC_KEY || null,
+  vapidPrivateKey: parsed.data.VAPID_PRIVATE_KEY || null,
+  vapidSubject: parsed.data.VAPID_SUBJECT || 'mailto:owner@majitkirana.example',
 })

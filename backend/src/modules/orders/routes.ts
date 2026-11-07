@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { getAuth, requireCustomer, requireOwner } from '../../middleware/auth.js'
 import { payAtShopSchema } from '../payments/schemas.js'
 import { payAtShop } from '../payments/service.js'
+import { getReceipt, getReceiptHtml } from '../receipts/service.js'
 import {
   cancelOrderSchema,
   createOrderSchema,
@@ -77,6 +78,14 @@ orderRoutes.get('/:id/bill', async (req, res) => {
   })
 })
 
+orderRoutes.get('/:id/receipt', async (req, res) => {
+  res.json({ data: await getReceipt(req.params.id, getAuth(res).user.id) })
+})
+
+orderRoutes.get('/:id/receipt.html', async (req, res) => {
+  res.type('html').send(await getReceiptHtml(req.params.id, getAuth(res).user.id))
+})
+
 orderRoutes.post('/:id/cancel', async (req, res) => {
   const body = cancelOrderSchema.parse(req.body ?? {})
   res.json({
@@ -106,6 +115,14 @@ adminOrderRoutes.get('/:id/bill', async (req, res) => {
   res.json({
     data: await getBill(req.params.id, { audience: 'owner' }),
   })
+})
+
+adminOrderRoutes.get('/:id/receipt', async (req, res) => {
+  res.json({ data: await getReceipt(req.params.id) })
+})
+
+adminOrderRoutes.get('/:id/receipt.html', async (req, res) => {
+  res.type('html').send(await getReceiptHtml(req.params.id))
 })
 
 adminOrderRoutes.patch('/:id/quote', async (req, res) => {

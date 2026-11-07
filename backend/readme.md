@@ -324,6 +324,55 @@ Owner only:
 - `PATCH /admin/settings` validates the UPI ID (`shop@upi` style); send `""` or
   `null` to disable UPI.
 
+## Web Push
+
+The customer subscribes after login; when the owner marks an order
+`READY_FOR_PICKUP`, every registered device gets a push.
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /api/v1/push/public-key` | `{ enabled, publicKey }` for the browser |
+| `POST /api/v1/push/subscribe` | Save `{ endpoint, keys: { p256dh, auth } }` |
+| `POST /api/v1/push/unsubscribe` | Remove `{ endpoint }` for this customer |
+
+Enable it with VAPID keys in the environment:
+
+```bash
+npx web-push generate-vapid-keys --json
+# put the values in .env
+VAPID_PUBLIC_KEY="..."
+VAPID_PRIVATE_KEY="..."
+VAPID_SUBJECT="mailto:owner@example.com"
+```
+
+- If keys are missing, `/push/public-key` returns `enabled: false`, and
+  `/push/subscribe` returns `503 PUSH_DISABLED`. Orders and receipts still work.
+- The same browser endpoint can be re-subscribed; it moves to the latest
+  customer (useful after logout/login).
+- Push payload: title, body, order URL and a stable tag. Sending failures never
+  block the status update.
+- Dead subscriptions (`404`/`410` from the push service) are deleted
+  automatically; successful sends update `last_success_at`.
+
+## Printable receipt
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /api/v1/orders/:id/receipt` | Receipt JSON + print-ready `html` |
+| `GET /api/v1/orders/:id/receipt.html` | Direct A4-printable HTML |
+| `GET /api/v1/admin/orders/:id/receipt` | Same, owner view |
+| `GET /api/v1/admin/orders/:id/receipt.html` | Owner printable HTML |
+
+- Works once a bill exists; `REQUESTED`/empty bills return `409 BILL_NOT_READY`.
+- The first receipt request assigns a unique `receiptNumber`
+  (`R-YYYYMMDD-XXXXXX`) and stores it on the order.
+- Receipts include store details, customer, items, subtotal, total, paid, due,
+  payment status/method/UTR, bill note, pickup note and UPI ID when unpaid.
+- HTML is A4 print-ready with inline CSS; open the `.html` URL and use
+  Ctrl/Cmd + P to print or save as PDF. All user/store text is HTML-escaped.
+- Any bill change (list edit, item edit, re-quote) clears `receiptNumber`, so the
+  next printout gets a fresh number for the new bill.
+
 ## Response format
 
 Success: `{ "data": ... }`
@@ -339,4 +388,4 @@ Every response carries an `x-request-id` header.
 
 B1 skeleton (done) → B2 database (done) → B3 auth (done) → B4 catalogue (done) →
 B5 cart/pricing (done) → B6 structured orders (done) → B6.5 text-list flow (done) →
-B7 payments (done) → B8 receipts/push → B9 tests & seed.
+B7 payments (done) → B8 receipts/push (done) → B9 tests & seed.

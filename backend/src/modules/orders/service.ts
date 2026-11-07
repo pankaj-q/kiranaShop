@@ -6,6 +6,7 @@ import { istDateStamp, nextServiceAt } from '../../lib/ist.js'
 import { rupees } from '../../lib/money.js'
 import { AppError } from '../../middleware/error.js'
 import { priceCart, type CartInputItem } from '../cart/service.js'
+import { notifyOrderReady } from '../push/service.js'
 import { parseList } from './listParser.js'
 
 type OrderUser = { id: string; name: string; phone: string }
@@ -276,6 +277,7 @@ export async function updateOrderItems(id: string, userId: string, items: CartIn
       data: {
         subtotalPaise: cart.subtotalPaise,
         totalPaise: cart.totalPaise,
+        receiptNumber: null,
         version: { increment: 1 },
         items: { create: itemCreate(cart.items) },
         events: {
@@ -337,6 +339,7 @@ export async function updateOrderList(id: string, userId: string, listText: stri
         status: 'REQUESTED',
         quotedAt: null,
         billNote: null,
+        receiptNumber: null,
         subtotalPaise: 0,
         totalPaise: 0,
         version: { increment: 1 },
@@ -428,6 +431,7 @@ export async function quoteOrder(
         totalPaise,
         quotedAt: new Date(),
         billNote: billNote ?? null,
+        receiptNumber: null,
         version: { increment: 1 },
         items: { create: prepared },
         events: {
@@ -506,7 +510,7 @@ export async function updateOrderStatus(
 
   if (status === 'REJECTED') assertNoPaymentActivity(order)
 
-  return prisma.order.update({
+  const updated = await prisma.order.update({
     where: { id },
     data: {
       status,
@@ -523,4 +527,10 @@ export async function updateOrderStatus(
     },
     include: orderInclude,
   })
+
+  if (status === 'READY_FOR_PICKUP') {
+    await notifyOrderReady(updated)
+  }
+
+  return updated
 }
