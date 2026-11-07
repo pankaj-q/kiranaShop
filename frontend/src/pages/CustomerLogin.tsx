@@ -38,7 +38,7 @@ export default function CustomerLogin() {
       setIsNew(false)
       setStep('otp')
       startCooldown(r.retryAfterSeconds)
-      toast.show('Code bhej diya gaya hai')
+      toast.show('Code bhej diya!')
     } catch (err) {
       const e = err as ApiError
       toast.show(e.message, 'error')
@@ -52,7 +52,7 @@ export default function CustomerLogin() {
     setLoading(true)
     try {
       await verifyOtp(phone, code, name || undefined)
-      toast.show('Login successful')
+      toast.show('Login ho gaya!')
       navigate('/')
     } catch (err) {
       const e = err as ApiError
@@ -69,7 +69,7 @@ export default function CustomerLogin() {
     try {
       const r = await requestOtp(phone)
       startCooldown(r.retryAfterSeconds)
-      toast.show('Naya code bhej diya')
+      toast.show('Naya code bheja!')
     } catch (err) {
       toast.show((err as ApiError).message, 'error')
     } finally {
