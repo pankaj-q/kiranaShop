@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import { authRoutes } from './modules/auth/routes.js'
+import { cartRoutes } from './modules/cart/routes.js'
 import { adminCatalogueRoutes, catalogueRoutes } from './modules/catalogue/routes.js'
 
 export const routes = Router()
@@ -15,5 +16,6 @@ routes.get('/healthz', (_req, res) => {
 })
 
 routes.use(authRoutes)
+routes.use(cartRoutes)
 routes.use(catalogueRoutes)
 routes.use('/admin', adminCatalogueRoutes)

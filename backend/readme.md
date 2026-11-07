@@ -125,6 +125,36 @@ CSV columns: `name, category, unit, price` (rupees), optional `aliases`
 `/images/placeholder.png`. Import is all-or-nothing; bad rows return `details`
 with row numbers.
 
+## Cart pricing
+
+The cart lives in the browser. Nothing is saved server-side.
+
+`POST /api/v1/cart/price` — body `{ "items": [{ "productId": "...", "quantity": 2 }] }`
+
+Returns one line per product with the **current** DB price:
+
+```json
+{
+  "data": {
+    "items": [
+      { "productId": "...", "quantity": 2, "name": "Sugar", "unit": "1 kg",
+        "pricePaise": 4500, "lineTotalPaise": 9000,
+        "isAvailable": true, "removed": false }
+    ],
+    "subtotalPaise": 9000,
+    "totalPaise": 9000
+  }
+}
+```
+
+- Duplicate `productId`s are merged; total quantity is capped at 99; max 50 lines.
+- `isAvailable: false` → product is out of stock or its category is inactive.
+  The line is still returned, but **not** added to the total.
+- `removed: true` → product no longer exists; `name`/`pricePaise` are `null`.
+- Prices are read fresh on every call, so owner changes show up immediately.
+  When the order is placed in B6, the same function runs and its prices are
+  snapshot into `order_items`.
+
 ## Response format
 
 Success: `{ "data": ... }`
@@ -139,4 +169,4 @@ Every response carries an `x-request-id` header.
 ## Build order
 
 B1 skeleton (done) → B2 database (done) → B3 auth (done) → B4 catalogue (done) →
-B5 cart/pricing → B6 orders → B7 payments → B8 receipts/push → B9 tests & seed.
+B5 cart/pricing (done) → B6 orders → B7 payments → B8 receipts/push → B9 tests & seed.
