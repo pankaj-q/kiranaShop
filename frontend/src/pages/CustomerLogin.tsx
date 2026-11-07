@@ -148,6 +148,7 @@ export default function CustomerLogin() {
         Dev mode: OTP code backend terminal (console) me print hota hai.
         Backend run karo: <code>cd backend && npm run dev</code>
       </p>
+{!import.meta.env.PROD && (
       <p style={{ marginTop: 8, fontSize: 13, color: 'var(--muted)' }}>
         Demo legacy login:{' '}
         <button
@@ -166,6 +167,7 @@ export default function CustomerLogin() {
           legacy
         </button>
       </p>
+)}
     </div>
   )
 }

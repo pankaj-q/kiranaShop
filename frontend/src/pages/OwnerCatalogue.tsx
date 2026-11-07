@@ -17,7 +17,7 @@ export default function OwnerCatalogue() {
     name: '',
     aliases: '',
     unit: '1 kg',
-    pricePaise: 1000,
+    priceRupees: '10',
     imageUrl: '/images/placeholder.png',
   })
 
@@ -80,7 +80,7 @@ export default function OwnerCatalogue() {
           name: form.name,
           aliases: form.aliases.split(',').map((s) => s.trim()).filter(Boolean),
           unit: form.unit,
-          pricePaise: form.pricePaise,
+          pricePaise: Math.round(Number(form.priceRupees) * 100) || 0,
           imageUrl: form.imageUrl,
         }),
       })
@@ -132,12 +132,13 @@ export default function OwnerCatalogue() {
               <input className="input" value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })} />
             </div>
             <div style={{ flex: 1 }}>
-              <label className="label">Price (paise)</label>
+              <label className="label">Price (rupees)</label>
               <input
                 className="input"
                 type="number"
-                value={form.pricePaise}
-                onChange={(e) => setForm({ ...form, pricePaise: Number(e.target.value) })}
+                step="0.01"
+                value={form.priceRupees}
+                onChange={(e) => setForm({ ...form, priceRupees: e.target.value })}
               />
             </div>
           </div>
@@ -150,6 +151,12 @@ export default function OwnerCatalogue() {
       <div className="list">
         {filtered.map((p) => (
           <div key={p.id} className="list-item">
+            <img
+              src={p.imageUrl}
+              alt={p.name}
+              style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 6, background: 'var(--surface-2)' }}
+              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+            />
             <div style={{ flex: 1 }}>
               <div style={{ fontWeight: 600 }}>
                 {p.name} {!p.isAvailable && <span className="badge danger">Unavailable</span>}
@@ -161,11 +168,12 @@ export default function OwnerCatalogue() {
             <input
               className="input"
               type="number"
+              step="0.01"
               style={{ width: 90 }}
-              defaultValue={p.pricePaise}
+              defaultValue={(p.pricePaise / 100).toFixed(2)}
               onBlur={(e) => {
                 const v = Number(e.target.value)
-                if (v && v !== p.pricePaise) updatePrice(p, v)
+                if (v && Math.round(v * 100) !== p.pricePaise) updatePrice(p, Math.round(v * 100))
               }}
             />
             <span style={{ width: 70, textAlign: 'right', fontWeight: 600 }}>{money(p.pricePaise)}</span>

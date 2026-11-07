@@ -1,5 +1,7 @@
 import { Router } from 'express'
 import { rateLimit } from 'express-rate-limit'
+import { config } from '../../config.js'
+import { AppError } from '../../middleware/error.js'
 import { getAuth, requireCustomer, requireOwner } from '../../middleware/auth.js'
 import { otpRequestLimiter, otpVerifyLimiter } from '../../middleware/rateLimit.js'
 import { customerSessionSchema, otpRequestSchema, otpVerifySchema, ownerLoginSchema } from './schemas.js'
@@ -45,6 +47,10 @@ authRoutes.get('/admin/me', requireOwner, (_req, res) => {
 })
 
 authRoutes.post('/customer/session', authLimiter, async (req, res) => {
+  if (config.isProd) {
+    throw new AppError(403, 'OTP_REQUIRED', 'OTP se login karna zaroori hai')
+  }
+
   const body = customerSessionSchema.parse(req.body)
   const { token, expiresAt, user } = await loginCustomer(body.name, body.phone)
 

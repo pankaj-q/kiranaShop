@@ -267,9 +267,10 @@ export default function OwnerOrderDetail() {
                   <input
                     className="input"
                     type="number"
+                    step="0.01"
                     style={{ width: 90 }}
-                    value={l.pricePaise}
-                    onChange={(e) => updateLine(idx, { pricePaise: Number(e.target.value) || 0 })}
+                    value={(l.pricePaise / 100).toFixed(2)}
+                    onChange={(e) => updateLine(idx, { pricePaise: Math.round(Number(e.target.value) * 100) || 0 })}
                   />
                   <span style={{ width: 80, textAlign: 'right' }}>{money(l.lineTotalPaise)}</span>
                   <button className="icon-btn" onClick={() => removeLine(idx)}>✕</button>

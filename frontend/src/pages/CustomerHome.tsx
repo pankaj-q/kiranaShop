@@ -5,7 +5,8 @@ import { useToast } from '../state/toast'
 import type { Order } from '../lib/types'
 import { formatDate } from '../lib/api'
 import { splitList } from '../components/NumberedList'
-import { Plus } from 'lucide-react'
+import { enablePush } from '../lib/push'
+import { Plus, Bell } from 'lucide-react'
 
 const statusLabel: Record<string, string> = {
   REQUESTED: 'List bheji gayi',
@@ -55,8 +56,28 @@ export default function CustomerHome() {
     }
   }
 
+  const [pushStatus, setPushStatus] = useState<string | null>(null)
+
+  const enableNotifications = async () => {
+    const r = await enablePush()
+    if (r.enabled) {
+      setPushStatus('on')
+      toast.show('Notifications on!')
+    } else if (r.reason === 'denied') {
+      setPushStatus('denied')
+      toast.show('Notifications blocked', 'error')
+    } else if (r.reason === 'disabled') {
+      toast.show('Notifications abhi configured nahi', 'error')
+    } else {
+      toast.show('Notifications nahi on ho paye', 'error')
+    }
+  }
+
   useEffect(() => {
     load()
+    if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+      enablePush().then((r) => { if (r.enabled) setPushStatus('on') })
+    }
   }, [])
 
   if (loading) return <div className="center"><span className="spinner" /></div>
@@ -65,9 +86,16 @@ export default function CustomerHome() {
     <div className="stack">
       <div className="row between">
         <h1>Mere orders</h1>
-        <Link to="/orders/new" className="btn">
-          <Plus size={16} /> Naya order
-        </Link>
+        <div className="row">
+          {pushStatus !== 'on' && (
+            <button className="btn secondary sm" onClick={enableNotifications}>
+              <Bell size={16} /> Notify
+            </button>
+          )}
+          <Link to="/orders/new" className="btn">
+            <Plus size={16} /> Naya order
+          </Link>
+        </div>
       </div>
 
       {orders.length === 0 ? (
