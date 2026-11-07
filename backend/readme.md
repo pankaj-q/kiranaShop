@@ -246,6 +246,84 @@ returns `409 INVALID_STATUS_TRANSITION` with the allowed list.
 - Every status change is appended to `order_events` (actor + role + note).
 - Order number format: `MK-YYYYMMDD-XXXXXX` (IST date + random suffix).
 
+## Payments
+
+UPI is manual: the customer scans a dynamic UPI QR, pays in their own app, then
+submits the UTR. The owner verifies it. Cash at pickup is recorded by the owner.
+UPI can only start after a bill exists (`PLACED` or later).
+
+**Settings** (owner configures the shop UPI ID; `null` means UPI is off):
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /api/v1/settings` | Public store info incl. `upiId` |
+| `GET /api/v1/admin/settings` | Full store settings |
+| `PATCH /api/v1/admin/settings` | Update `upiId`, store name, phone, hours, `pickupNote`, `manualClosed` |
+
+Customer (session required):
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /api/v1/orders/:id/payment` | Amount due, UPI intent + QR, payment history |
+| `POST /api/v1/orders/:id/payments/upi` | Submit `{ "utrReference": "..." }` after paying |
+
+Owner only:
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /api/v1/admin/payments` | Payment queue; `status`, `page`, `limit` |
+| `POST /api/v1/admin/payments/:id/verify` | Confirm UTR; optional `amountPaise`, `note` |
+| `POST /api/v1/admin/payments/:id/reject` | Reject a pending UTR; optional `note` |
+| `POST /api/v1/admin/payments/:id/refund` | Refund a paid/partial payment; optional `note` |
+| `POST /api/v1/admin/orders/:id/pay-at-shop` | Record cash; optional `amountPaise`, `note` |
+
+**Payment screen response**
+
+```json
+{
+  "billReady": true,
+  "totalPaise": 9000,
+  "amountPaidPaise": 0,
+  "amountDuePaise": 9000,
+  "paymentStatus": "UNPAID",
+  "canPay": true,
+  "canPayAtShop": true,
+  "pendingPaymentId": null,
+  "upi": {
+    "upiId": "shop@upi",
+    "uri": "upi://pay?pa=shop%40upi&pn=MajitKirana&am=90.00&cu=INR&tn=Order%20MK-...",
+    "qrDataUrl": "data:image/png;base64,..."
+  },
+  "payments": []
+}
+```
+
+- `upi` is `null` when UPI is not configured, nothing is due, or a payment is
+  already pending. In that case the customer can still pay at the shop.
+- The QR is a PNG data URL generated from the exact amount due, so it is always
+  dynamic per order/part-payment.
+- Without a configured `upiId`, submitting UPI returns `409 UPI_NOT_CONFIGURED`;
+  cash at shop still works.
+
+**Rules**
+
+- Payment is allowed for `PLACED`, `ACCEPTED`, `PREPARING`, `READY_FOR_PICKUP`
+  and `COMPLETED`. `REQUESTED`, `CANCELLED` and `REJECTED` cannot be paid.
+- `REQUESTED` (no bill yet) → `409 BILL_NOT_READY`.
+- UTR: 6–50 letters/numbers, unique across all non-rejected payments.
+- Only one pending UPI payment per order (`409 PAYMENT_PENDING` otherwise).
+- Owner verification can lower the amount (part payment). `amountPaise` must
+  not exceed the remaining due.
+- Order `paymentStatus` is derived: `PAID` when paid ≥ total, else
+  `AWAITING_VERIFICATION` while a UTR is pending, else `PARTIAL` when something
+  was paid, else `UNPAID`. Refunded payments are excluded.
+- While a payment is pending or paid, the customer cannot edit the list or
+  cancel, and the owner cannot re-quote or reject the order. Reject/refund the
+  payment first (`409 ORDER_HAS_PAYMENT`).
+- Every payment action is appended to `order_events`.
+- `PATCH /admin/settings` validates the UPI ID (`shop@upi` style); send `""` or
+  `null` to disable UPI.
+
 ## Response format
 
 Success: `{ "data": ... }`
@@ -261,4 +339,4 @@ Every response carries an `x-request-id` header.
 
 B1 skeleton (done) → B2 database (done) → B3 auth (done) → B4 catalogue (done) →
 B5 cart/pricing (done) → B6 structured orders (done) → B6.5 text-list flow (done) →
-B7 payments → B8 receipts/push → B9 tests & seed.
+B7 payments (done) → B8 receipts/push → B9 tests & seed.

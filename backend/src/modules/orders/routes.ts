@@ -1,5 +1,7 @@
 import { Router } from 'express'
 import { getAuth, requireCustomer, requireOwner } from '../../middleware/auth.js'
+import { payAtShopSchema } from '../payments/schemas.js'
+import { payAtShop } from '../payments/service.js'
 import {
   cancelOrderSchema,
   createOrderSchema,
@@ -110,6 +112,13 @@ adminOrderRoutes.patch('/:id/quote', async (req, res) => {
   const body = quoteOrderSchema.parse(req.body)
   res.json({
     data: await quoteOrder(req.params.id, getAuth(res).user.id, body.items, body.billNote),
+  })
+})
+
+adminOrderRoutes.post('/:id/pay-at-shop', async (req, res) => {
+  const body = payAtShopSchema.parse(req.body ?? {})
+  res.status(201).json({
+    data: await payAtShop(req.params.id, getAuth(res).user.id, body),
   })
 })
 

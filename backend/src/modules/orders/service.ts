@@ -1,17 +1,40 @@
 import { randomBytes } from 'node:crypto'
 import type { Prisma } from '../../generated/prisma/client.js'
-import type { OrderStatus } from '../../generated/prisma/enums.js'
+import type { OrderStatus, PaymentStatus } from '../../generated/prisma/enums.js'
 import { prisma } from '../../db.js'
 import { istDateStamp, nextServiceAt } from '../../lib/ist.js'
+import { rupees } from '../../lib/money.js'
 import { AppError } from '../../middleware/error.js'
 import { priceCart, type CartInputItem } from '../cart/service.js'
 import { parseList } from './listParser.js'
 
 type OrderUser = { id: string; name: string; phone: string }
+type PaymentState = { status: PaymentStatus }
 
 const orderInclude = {
   items: true,
   events: { orderBy: { createdAt: 'asc' as const } },
+  payments: { orderBy: { createdAt: 'desc' as const } },
+}
+
+function hasPaymentActivity(payments: PaymentState[]) {
+  return payments.some(
+    (payment) =>
+      payment.status === 'AWAITING_VERIFICATION' ||
+      payment.status === 'PAID' ||
+      payment.status === 'PARTIAL',
+  )
+}
+
+/** A quoted/paid order must be settled (or refunded) before the list changes. */
+function assertNoPaymentActivity(order: { payments: PaymentState[] }) {
+  if (hasPaymentActivity(order.payments)) {
+    throw new AppError(
+      409,
+      'ORDER_HAS_PAYMENT',
+      'Payment ho chuka hai ya verify hone ka wait hai. Pehle payment settle karein.',
+    )
+  }
 }
 
 /** Which statuses the owner may move an order to. */
@@ -241,6 +264,7 @@ export async function updateOrderItems(id: string, userId: string, items: CartIn
   if (!CUSTOMER_EDITABLE.includes(order.status)) {
     throw new AppError(409, 'ORDER_NOT_EDITABLE', 'Order ab edit nahi ho sakta')
   }
+  assertNoPaymentActivity(order)
 
   const cart = await pricedCartOrThrow(items)
 
@@ -273,6 +297,7 @@ export async function cancelOrder(id: string, userId: string, note?: string) {
   if (!CUSTOMER_EDITABLE.includes(order.status)) {
     throw new AppError(409, 'ORDER_NOT_CANCELLABLE', 'Order ab cancel nahi ho sakta')
   }
+  assertNoPaymentActivity(order)
 
   return prisma.order.update({
     where: { id },
@@ -300,6 +325,7 @@ export async function updateOrderList(id: string, userId: string, listText: stri
   if (!CUSTOMER_EDITABLE.includes(order.status)) {
     throw new AppError(409, 'ORDER_NOT_EDITABLE', 'Order ab edit nahi ho sakta')
   }
+  assertNoPaymentActivity(order)
 
   return prisma.$transaction(async (tx) => {
     await tx.orderItem.deleteMany({ where: { orderId: id } })
@@ -350,6 +376,7 @@ export async function quoteOrder(
   if (order.status !== 'REQUESTED' && order.status !== 'PLACED') {
     throw new AppError(409, 'ORDER_NOT_QUOTABLE', 'Is order ka bill ab nahi ban sakta')
   }
+  assertNoPaymentActivity(order)
 
   const productIds = [
     ...new Set(items.map((item) => item.productId).filter((value): value is string => Boolean(value))),
@@ -418,11 +445,6 @@ export async function quoteOrder(
   })
 }
 
-function rupees(paise: number) {
-  const value = paise / 100
-  return Number.isInteger(value) ? `₹${value}` : `₹${value.toFixed(2)}`
-}
-
 function waNumber(phone: string) {
   const digits = phone.replace(/\D/g, '')
   return digits.length === 10 ? `91${digits}` : digits
@@ -481,6 +503,8 @@ export async function updateOrderStatus(
       allowed,
     })
   }
+
+  if (status === 'REJECTED') assertNoPaymentActivity(order)
 
   return prisma.order.update({
     where: { id },

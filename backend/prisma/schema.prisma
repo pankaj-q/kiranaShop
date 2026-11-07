@@ -36,6 +36,7 @@ enum PaymentStatus {
   AWAITING_VERIFICATION
   PAID
   PARTIAL
+  REJECTED
   REFUNDED
 }
 
@@ -199,6 +200,7 @@ model Payment {
   verifiedBy User? @relation("VerifiedPayments", fields: [verifiedById], references: [id], onDelete: SetNull)
 
   @@index([orderId])
+  @@index([status, createdAt])
   @@map("payments")
 }
 
