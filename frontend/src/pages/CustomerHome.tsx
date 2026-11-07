@@ -75,6 +75,11 @@ export default function CustomerHome() {
                 <div style={{ fontSize: 13, color: 'var(--muted)' }}>
                   {formatDate(o.createdAt)} · {o.items.length} items
                 </div>
+                {o.rawList && (
+                  <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 260 }}>
+                    {o.rawList}
+                  </div>
+                )}
               </div>
               <div style={{ textAlign: 'right' }}>
                 <span className={`badge ${statusBadge[o.status] ?? ''}`}>

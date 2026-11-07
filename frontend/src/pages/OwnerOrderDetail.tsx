@@ -184,9 +184,12 @@ export default function OwnerOrderDetail() {
           </div>
           <span className="badge warn">{order.status}</span>
         </div>
-        {order.rawList && (
-          <p style={{ marginTop: 8, color: 'var(--muted)' }}>List: {order.rawList}</p>
-        )}
+      {order.rawList && (
+        <div className="card">
+          <h2>Aapki list</h2>
+          <p style={{ whiteSpace: 'pre-wrap', margin: 0 }}>{order.rawList}</p>
+        </div>
+      )}
       </div>
 
       {order.items.length > 0 && (

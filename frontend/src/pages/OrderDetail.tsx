@@ -104,6 +104,12 @@ export default function OrderDetail() {
             {statusLabel[order.status]}
           </span>
         </div>
+        {order.rawList && (
+          <div style={{ marginTop: 12, padding: 10, background: 'var(--surface-2)', borderRadius: 8 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)', marginBottom: 4 }}>Aapki list</div>
+            <div style={{ whiteSpace: 'pre-wrap' }}>{order.rawList}</div>
+          </div>
+        )}
         {order.billNote && <p style={{ marginTop: 8 }}>Note: {order.billNote}</p>}
         {order.customerNote && <p style={{ marginTop: 4, color: 'var(--muted)' }}>Aapka note: {order.customerNote}</p>}
       </div>
