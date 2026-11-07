@@ -199,7 +199,10 @@ export default function OwnerOrderDetail() {
 
       {order.rawList && (
         <div className="card">
-          <h2>Aapki list</h2>
+          <h2>Order list</h2>
+          <div style={{ marginBottom: 8, fontSize: 13, color: 'var(--muted)' }}>
+            <strong>{order.customerNameSnapshot}</strong> · {formatDate(order.createdAt)}
+          </div>
           <NumberedList text={order.rawList} />
         </div>
       )}
