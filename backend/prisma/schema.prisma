@@ -16,6 +16,7 @@ enum Role {
 }
 
 enum OrderStatus {
+  REQUESTED
   PLACED
   ACCEPTED
   PREPARING
@@ -107,9 +108,9 @@ model Product {
   category   Category    @relation(fields: [categoryId], references: [id])
   orderItems OrderItem[]
 
+  @@unique([categoryId, name, unit])
   @@index([isAvailable, categoryId])
   @@index([searchName])
-  @@unique([categoryId, name, unit])
   @@map("products")
 }
 
@@ -121,11 +122,14 @@ model Order {
   customerNameSnapshot String        @map("customer_name_snapshot")
   phoneSnapshot        String        @map("phone_snapshot")
   customerNote         String?       @map("customer_note")
+  rawList              String?       @map("raw_list")
+  billNote             String?       @map("bill_note")
   status               OrderStatus   @default(PLACED)
   subtotalPaise        Int           @map("subtotal_paise")
   totalPaise           Int           @map("total_paise")
   paymentStatus        PaymentStatus @default(UNPAID) @map("payment_status")
   scheduledFor         DateTime?     @map("scheduled_for")
+  quotedAt             DateTime?     @map("quoted_at")
   receiptNumber        String?       @unique @map("receipt_number")
   version              Int           @default(1)
   createdAt            DateTime      @default(now()) @map("created_at")
@@ -148,6 +152,7 @@ model OrderItem {
   productId      String? @map("product_id")
   nameSnapshot   String  @map("name_snapshot")
   unitSnapshot   String  @map("unit_snapshot")
+  quantityText   String? @map("quantity_text")
   unitPricePaise Int     @map("unit_price_paise")
   quantity       Int
   lineTotalPaise Int     @map("line_total_paise")

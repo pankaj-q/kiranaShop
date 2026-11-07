@@ -68,8 +68,8 @@ src/
 | sessions | opaque session tokens (hashed), expiry |
 | categories | catalogue categories |
 | products | ~400 SKUs, aliases[] for chini/tel search, image URL |
-| orders | order number, idempotency key, snapshots, status, paise totals |
-| order_items | item snapshots (name/unit/price at order time) |
+| orders | order number, idempotency key, raw list, bill note, snapshots, status, paise totals |
+| order_items | bill snapshots (name/unit/price/quantity text) |
 | order_events | audit trail for every status change |
 | payments | pay-at-shop / UPI manual + UTR + verification |
 | store_settings | singleton: MajitKirana, 06:00–23:00 IST |
@@ -157,41 +157,89 @@ Returns one line per product with the **current** DB price:
 
 ## Orders
 
+The primary flow is a **free-text shopping list**: the customer speaks or types
+("2 kilo chini, 1 litre tel, Maggi") and the owner builds the bill. Customers do
+not pick catalogue items or see prices.
+
 Customer (session required):
 
 | Endpoint | Purpose |
 |---|---|
-| `POST /api/v1/orders` | Place order (`items`, `customerNote?`, `idempotencyKey?`) |
+| `POST /api/v1/orders/parse` | Suggest catalogue matches for a list (`listText`) |
+| `POST /api/v1/orders/request` | Send a list (`listText`, `customerNote?`, `idempotencyKey?`) |
+| `PATCH /api/v1/orders/:id/request` | Replace the list; any bill is cleared |
+| `GET /api/v1/orders/:id/bill` | Bill text + `wa.me` link to the shop |
+| `POST /api/v1/orders` | Structured order (`items`) — kept for compatibility |
 | `GET /api/v1/orders` | Own orders; `status`, `page`, `limit` |
 | `GET /api/v1/orders/:id` | Own order with items + event trail |
-| `PATCH /api/v1/orders/:id/items` | Replace items while `PLACED` or `ACCEPTED` |
-| `POST /api/v1/orders/:id/cancel` | Cancel while `PLACED` or `ACCEPTED` |
+| `PATCH /api/v1/orders/:id/items` | Replace items while `REQUESTED`, `PLACED` or `ACCEPTED` |
+| `POST /api/v1/orders/:id/cancel` | Cancel while `REQUESTED`, `PLACED` or `ACCEPTED` |
 
 Owner only:
 
 | Endpoint | Purpose |
 |---|---|
 | `GET /api/v1/admin/orders` | Queue; `status`, `page`, `limit`, newest first |
+| `POST /api/v1/admin/orders/parse` | Same parser, for the owner's billing screen |
 | `GET /api/v1/admin/orders/:id` | Any order |
+| `GET /api/v1/admin/orders/:id/bill` | Bill text + `wa.me` link to the customer |
+| `PATCH /api/v1/admin/orders/:id/quote` | Turn a list into a bill (`items`, `billNote?`) |
 | `PATCH /api/v1/admin/orders/:id/status` | `{ status, note? }` |
 
 **Status flow**
 
 ```
-PLACED ──► ACCEPTED ──► PREPARING ──► READY_FOR_PICKUP ──► COMPLETED
-   │           │
-   └───────────┴──► REJECTED (owner)  |  CANCELLED (customer, until PREPARING)
+REQUESTED ──(owner quote)──► PLACED ──► ACCEPTED ──► PREPARING ──► READY_FOR_PICKUP ──► COMPLETED
+    │                          │           │
+    └──► REJECTED (owner)      └───────────┴──► REJECTED (owner)
+                                           └──► CANCELLED (customer, until PREPARING)
 ```
 
-Any other transition returns `409 INVALID_STATUS_TRANSITION` with the allowed list.
+`REQUESTED` means the list arrived but no bill exists yet (`totalPaise = 0`).
+The owner may also move `PLACED` straight to `PREPARING`. Any other transition
+returns `409 INVALID_STATUS_TRANSITION` with the allowed list.
+
+**Parser (`POST /orders/parse`, `/admin/orders/parse`)**
+
+- Splits on new lines, commas, semicolons, `aur` / `and`, `+`.
+- Understands digits and common Hindi numbers (`ek`, `do`, `dedh`, `dhai`, …)
+  plus units (`kilo`, `litre`, `gm`, `packet`, `dozen`, …).
+- Matches product name + `aliases[]`: exact → prefix → all words → any word.
+- Returns `{ items, unmatched }`. Each suggestion has `confidence`
+  (`high`/`medium`/`low`), `quantity` and `quantityText` (e.g. `"2 kg"`).
+- Suggestions are **not** saved; the owner confirms the final bill.
+
+**Quote / bill (`PATCH /admin/orders/:id/quote`)**
+
+```json
+{
+  "items": [
+    { "productId": "...", "quantity": 2 },
+    { "productId": "...", "quantity": 1, "quantityText": "1.5 kg", "pricePaise": 6750 },
+    { "name": "Doodh", "unit": "500 ml", "quantity": 2, "pricePaise": 3000 }
+  ],
+  "billNote": "Sugar aaj ₹45/kg"
+}
+```
+
+- `productId` uses the DB name/unit/price; `pricePaise` may override it.
+- Custom lines need `name`, `unit`, `pricePaise`.
+- Loose weight: send `quantity: 1` + `quantityText: "1.5 kg"`.
+- Re-quoting `PLACED` replaces the old bill and increments `version`.
+- `GET /orders/:id/bill` returns `billText` and a `wa.me` link addressed to the
+  shop; the owner's variant links to the customer's phone. Sending is a free
+  tap-to-send WhatsApp flow — no Cloud API.
+- A bill is informational; there is no customer confirmation step. The customer
+  can pay (B7), pay at shop, update the list (bill is cleared → `REQUESTED`), or
+  cancel before `PREPARING`.
 
 **Behaviour**
 
-- Items are re-priced from the DB at order time; prices are copied into
+- Structured orders are re-priced from the DB; prices are copied into
   `order_items` so later owner changes don't alter past bills.
-- Unavailable/removed items block the order with `400 CART_INVALID` + details.
+- Unavailable/removed items block a structured order with `400 CART_INVALID`.
 - Name and phone are snapshotted on the order from the customer session.
-- `idempotencyKey` makes retried checkouts safe — same key returns the same order.
+- `idempotencyKey` makes retried requests safe — same key returns the same order.
 - Orders are accepted 24/7. Between close and open, `scheduledFor` is set to the
   next opening time in IST (e.g. ordered 23:30 → 06:00 next day); during shop
   hours it is `null`.
@@ -212,4 +260,5 @@ Every response carries an `x-request-id` header.
 ## Build order
 
 B1 skeleton (done) → B2 database (done) → B3 auth (done) → B4 catalogue (done) →
-B5 cart/pricing (done) → B6 orders (done) → B7 payments → B8 receipts/push → B9 tests & seed.
+B5 cart/pricing (done) → B6 structured orders (done) → B6.5 text-list flow (done) →
+B7 payments → B8 receipts/push → B9 tests & seed.

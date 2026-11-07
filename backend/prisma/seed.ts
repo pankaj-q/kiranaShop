@@ -17,12 +17,18 @@ async function main() {
       id: 'singleton',
       storeName: 'MajitKirana',
       address: 'Majeet Tiraha, Ramghat Road, Jargwan',
-      phone: '',
+      phone: adminLogin,
       openTime: '06:00',
       closeTime: '23:00',
       timezone: 'Asia/Kolkata',
       pickupNote: 'Order ready hone par dukaan se le lein.',
     },
+  })
+
+  // Fill the shop phone only if it is still empty (don't overwrite owner edits).
+  await prisma.storeSettings.updateMany({
+    where: { id: 'singleton', phone: '' },
+    data: { phone: adminLogin },
   })
 
   const owner = await prisma.user.upsert({
