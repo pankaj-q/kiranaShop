@@ -142,10 +142,18 @@ OTP rules:
 - `OTP_HASH_SECRET` defaults to `SESSION_SECRET`; use a separate random value in
   production.
 
-See [`docs/otp-design.md`](docs/otp-design.md) for the full design, provider
-options/cost and the remaining open decisions. The legacy
-`POST /customer/session` endpoint stays enabled for now but must be disabled
-before public launch.
+Local testing with OTP:
+
+1. Run backend in dev mode: `npm run dev` (uses `OTP_PROVIDER=console`).
+2. Open the app, enter a phone number, click "Code bhejein".
+3. The 6-digit code is printed in the backend terminal:
+   `OTP code for 98******10: 123456`
+4. Enter that code in the UI and verify.
+5. Each phone has a 60-second resend cooldown; use a different number to test again.
+6. If you see `OTP_NOT_CONFIGURED`, the backend is running in production mode
+   without a real provider — restart with `NODE_ENV=development`.
+
+For tests, `npm test` sets `OTP_PROVIDER=memory` automatically.
 
 Sessions are opaque 32-byte tokens, stored as SHA-256 hashes in `sessions`, sent
 in the `mk_session` cookie (HttpOnly, SameSite=Lax in development, SameSite=None

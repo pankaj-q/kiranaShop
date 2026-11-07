@@ -145,7 +145,11 @@ export default function CustomerLogin() {
         </form>
       )}
       <p style={{ marginTop: 12, fontSize: 13, color: 'var(--muted)' }}>
-        Demo: legacy login bhi available hai{' '}
+        Dev mode: OTP code backend terminal (console) me print hota hai.
+        Backend run karo: <code>cd backend && npm run dev</code>
+      </p>
+      <p style={{ marginTop: 8, fontSize: 13, color: 'var(--muted)' }}>
+        Demo legacy login:{' '}
         <button
           className="btn ghost sm"
           onClick={async () => {
