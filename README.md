@@ -1,0 +1,1 @@
+# This is an small E-commorce platform for pre booking festival goods through an web App or mobile App.
