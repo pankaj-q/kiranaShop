@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import { getAuth, requireCustomer, requireOwner } from '../../middleware/auth.js'
+import { orderCreateLimiter } from '../../middleware/rateLimit.js'
 import { payAtShopSchema } from '../payments/schemas.js'
 import { payAtShop } from '../payments/service.js'
 import { getReceipt, getReceiptHtml } from '../receipts/service.js'
@@ -31,7 +32,7 @@ export const orderRoutes = Router()
 
 orderRoutes.use(requireCustomer)
 
-orderRoutes.post('/', async (req, res) => {
+orderRoutes.post('/', orderCreateLimiter, async (req, res) => {
   const body = createOrderSchema.parse(req.body)
   res.status(201).json({ data: await createOrder(getAuth(res).user, body) })
 })
@@ -41,7 +42,7 @@ orderRoutes.post('/parse', async (req, res) => {
   res.json({ data: await parseListText(body.listText) })
 })
 
-orderRoutes.post('/request', async (req, res) => {
+orderRoutes.post('/request', orderCreateLimiter, async (req, res) => {
   const body = requestOrderSchema.parse(req.body)
   res.status(201).json({ data: await requestOrder(getAuth(res).user, body) })
 })

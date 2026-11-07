@@ -81,6 +81,11 @@ describe('MajitKirana API', () => {
   it('serves health', async () => {
     const res = await request(app).get('/api/v1/healthz').expect(200)
     assert.equal(res.body.data.status, 'ok')
+    assert.equal(res.body.data.database, 'ok')
+
+    const live = await request(app).get('/api/v1/livez').expect(200)
+    assert.equal(live.body.data.status, 'ok')
+    assert.equal(live.body.data.database, undefined)
   })
 
   it('logs in the owner and creates customer sessions', async () => {
@@ -356,6 +361,30 @@ describe('MajitKirana API', () => {
       .send({ name: 'Big', phone: '9999999997', pad: 'a'.repeat(1_100_000) })
       .expect(413)
     assert.equal(big.body.error.code, 'PAYLOAD_TOO_LARGE')
+  })
+
+  it('rate-limits order creation per customer', async () => {
+    const limitedCustomer = request.agent(app)
+
+    await limitedCustomer
+      .post('/api/v1/customer/session')
+      .send({ name: 'Spam Test', phone: '9876543212' })
+      .expect(200)
+
+    for (let index = 0; index < 10; index++) {
+      await limitedCustomer
+        .post('/api/v1/orders/request')
+        .send({ listText: `2 kilo chini ${index}` })
+        .expect(201)
+    }
+
+    const blocked = await limitedCustomer
+      .post('/api/v1/orders/request')
+      .send({ listText: '2 kilo chini' })
+      .expect(429)
+
+    assert.equal(blocked.body.error.code, 'RATE_LIMITED')
+    assert.ok(blocked.headers['retry-after'])
   })
 
   it('enforces authz and validation', async () => {

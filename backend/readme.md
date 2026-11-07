@@ -60,12 +60,14 @@ npm test
 - Tests **refuse to run** unless the database name contains `test`.
 - They truncate only the test database before and after the run.
 - Override with `TEST_DATABASE_URL` or `TEST_SESSION_SECRET` if needed.
-- Currently 17 tests (13 API integration + 4 IST/date unit); `npm test` is
+- Currently 18 tests (14 API integration + 4 IST/date unit); `npm test` is
   sequential by design.
 
 ## Layout
 
 ```
+docs/
+  otp-design.md            OTP login design (not implemented yet)
 prisma/
   schema.prisma            10 models, 5 enums
   migrations/              SQL migrations
@@ -77,12 +79,14 @@ src/
   app.ts                   express wiring
   config.ts                env validation (zod)
   db.ts                    Prisma client + pg adapter
-  routes.ts                /api/v1 routes
+  routes.ts                /api/v1 routes + DB-backed health check
   middleware/
     requestLogger.ts       request id + one log line per request
     error.ts               AppError, 404, central error handler
+    rateLimit.ts           per-customer order-creation limiter
   tests/
     api.test.ts            end-to-end API integration tests
+    ist.test.ts            IST opening-hours/date tests
   lib/
     logger.ts              pino logger
     password.ts            scrypt hash/verify (owner password)
@@ -108,12 +112,18 @@ Money is integer **paise**. Timestamps are UTC; business rules use `Asia/Kolkata
 
 ## Auth
 
+> **OTP login is designed but not implemented yet.** See
+> [`docs/otp-design.md`](docs/otp-design.md) for the full design, provider/cost
+> options and open decisions. Until then, `POST /customer/session` is a
+> temporary name+phone shortcut (currently enabled in all environments) and must
+> be disabled before public launch.
+
 | Endpoint | Purpose |
 |---|---|
 | `POST /api/v1/admin/login` | Owner login (`login` = phone, `password`) |
 | `POST /api/v1/admin/logout` | Owner logout |
 | `GET /api/v1/admin/me` | Current owner |
-| `POST /api/v1/customer/session` | Create/restore customer session (`name`, `phone`) |
+| `POST /api/v1/customer/session` | Temporary customer session (`name`, `phone`; no OTP yet) |
 | `POST /api/v1/customer/logout` | Customer logout |
 | `GET /api/v1/customer/me` | Current customer |
 
@@ -271,6 +281,9 @@ returns `409 INVALID_STATUS_TRANSITION` with the allowed list.
 - Structured orders are re-priced from the DB; prices are copied into
   `order_items` so later owner changes don't alter past bills.
 - Unavailable/removed items block a structured order with `400 CART_INVALID`.
+- New order creation (structured or text list) is limited to **10 per 10
+  minutes per customer**; exceeding it returns `429 RATE_LIMITED` with a
+  `Retry-After` header. The limiter is in-memory and suits one Render instance.
 - Name and phone are snapshotted on the order from the customer session.
 - `idempotencyKey` makes retried requests safe — same key returns the same order.
 - Orders are accepted 24/7. Between close and open, `scheduledFor` is set to the
@@ -422,10 +435,24 @@ Every response carries an `x-request-id` header.
 
 ## Health
 
-`GET /api/v1/healthz` → `{ "data": { "status": "ok", "uptime": 12, "timestamp": "..." } }`
+| Endpoint | Checks | Use |
+|---|---|---|
+| `GET /api/v1/livez` | process only | Render liveness probe (cheap, no DB wake) |
+| `GET /api/v1/healthz` | Postgres (`SELECT 1`) | readiness / uptime monitoring |
+| `GET /api/v1/readyz` | Postgres (`SELECT 1`) | explicit readiness alias |
+
+```json
+{ "data": { "status": "ok", "database": "ok", "uptime": 12, "timestamp": "...", "latencyMs": 3 } }
+```
+
+If the database is unreachable `/healthz` and `/readyz` return **503** with
+`status: "degraded"` and `database: "down"`. Point Render's frequent health probe
+at `/livez` so Neon can auto-suspend and stay within the free compute hours; use
+`/healthz` for an occasional deeper check.
 
 ## Build order
 
 B1 skeleton (done) → B2 database (done) → B3 auth (done) → B4 catalogue (done) →
 B5 cart/pricing (done) → B6 structured orders (done) → B6.5 text-list flow (done) →
-B7 payments (done) → B8 receipts/push (done) → B9 tests & seed (done).
+B7 payments (done) → B8 receipts/push (done) → B9 tests & seed (done) →
+OTP login design (proposed) → OTP implementation → B10 deployment.
