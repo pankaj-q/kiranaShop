@@ -152,8 +152,51 @@ Returns one line per product with the **current** DB price:
   The line is still returned, but **not** added to the total.
 - `removed: true` → product no longer exists; `name`/`pricePaise` are `null`.
 - Prices are read fresh on every call, so owner changes show up immediately.
-  When the order is placed in B6, the same function runs and its prices are
+  When the order is placed, the same function runs and its prices are
   snapshot into `order_items`.
+
+## Orders
+
+Customer (session required):
+
+| Endpoint | Purpose |
+|---|---|
+| `POST /api/v1/orders` | Place order (`items`, `customerNote?`, `idempotencyKey?`) |
+| `GET /api/v1/orders` | Own orders; `status`, `page`, `limit` |
+| `GET /api/v1/orders/:id` | Own order with items + event trail |
+| `PATCH /api/v1/orders/:id/items` | Replace items while `PLACED` or `ACCEPTED` |
+| `POST /api/v1/orders/:id/cancel` | Cancel while `PLACED` or `ACCEPTED` |
+
+Owner only:
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /api/v1/admin/orders` | Queue; `status`, `page`, `limit`, newest first |
+| `GET /api/v1/admin/orders/:id` | Any order |
+| `PATCH /api/v1/admin/orders/:id/status` | `{ status, note? }` |
+
+**Status flow**
+
+```
+PLACED ──► ACCEPTED ──► PREPARING ──► READY_FOR_PICKUP ──► COMPLETED
+   │           │
+   └───────────┴──► REJECTED (owner)  |  CANCELLED (customer, until PREPARING)
+```
+
+Any other transition returns `409 INVALID_STATUS_TRANSITION` with the allowed list.
+
+**Behaviour**
+
+- Items are re-priced from the DB at order time; prices are copied into
+  `order_items` so later owner changes don't alter past bills.
+- Unavailable/removed items block the order with `400 CART_INVALID` + details.
+- Name and phone are snapshotted on the order from the customer session.
+- `idempotencyKey` makes retried checkouts safe — same key returns the same order.
+- Orders are accepted 24/7. Between close and open, `scheduledFor` is set to the
+  next opening time in IST (e.g. ordered 23:30 → 06:00 next day); during shop
+  hours it is `null`.
+- Every status change is appended to `order_events` (actor + role + note).
+- Order number format: `MK-YYYYMMDD-XXXXXX` (IST date + random suffix).
 
 ## Response format
 
@@ -169,4 +212,4 @@ Every response carries an `x-request-id` header.
 ## Build order
 
 B1 skeleton (done) → B2 database (done) → B3 auth (done) → B4 catalogue (done) →
-B5 cart/pricing (done) → B6 orders → B7 payments → B8 receipts/push → B9 tests & seed.
+B5 cart/pricing (done) → B6 orders (done) → B7 payments → B8 receipts/push → B9 tests & seed.

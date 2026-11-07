@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { authRoutes } from './modules/auth/routes.js'
 import { cartRoutes } from './modules/cart/routes.js'
 import { adminCatalogueRoutes, catalogueRoutes } from './modules/catalogue/routes.js'
+import { adminOrderRoutes, orderRoutes } from './modules/orders/routes.js'
 
 export const routes = Router()
 
@@ -17,5 +18,7 @@ routes.get('/healthz', (_req, res) => {
 
 routes.use(authRoutes)
 routes.use(cartRoutes)
+routes.use('/orders', orderRoutes)
 routes.use(catalogueRoutes)
 routes.use('/admin', adminCatalogueRoutes)
+routes.use('/admin/orders', adminOrderRoutes)
