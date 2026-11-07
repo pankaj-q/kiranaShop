@@ -1,0 +1,228 @@
+// MajitKirana — data model
+// Money is stored as integer paise. Timestamps are UTC; business logic uses IST.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  CUSTOMER
+  OWNER
+}
+
+enum OrderStatus {
+  PLACED
+  ACCEPTED
+  PREPARING
+  READY_FOR_PICKUP
+  COMPLETED
+  REJECTED
+  CANCELLED
+}
+
+enum PaymentMethod {
+  PAY_AT_SHOP
+  UPI_MANUAL
+}
+
+enum PaymentStatus {
+  UNPAID
+  AWAITING_VERIFICATION
+  PAID
+  PARTIAL
+  REFUNDED
+}
+
+enum ImageSource {
+  SEEDED
+  OWNER
+  PLACEHOLDER
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  phone        String   @unique
+  role         Role     @default(CUSTOMER)
+  passwordHash String?  @map("password_hash")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  sessions          Session[]
+  orders            Order[]
+  orderEvents       OrderEvent[]
+  pushSubscriptions PushSubscription[]
+  verifiedPayments  Payment[]          @relation("VerifiedPayments")
+
+  @@map("users")
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  tokenHash String   @unique @map("token_hash")
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+model Category {
+  id           String   @id @default(cuid())
+  name         String
+  slug         String   @unique
+  displayOrder Int      @default(0) @map("display_order")
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  products Product[]
+
+  @@map("categories")
+}
+
+model Product {
+  id          String      @id @default(cuid())
+  categoryId  String      @map("category_id")
+  name        String
+  searchName  String      @map("search_name")
+  aliases     String[]    @default([])
+  unit        String
+  pricePaise  Int         @map("price_paise")
+  imageUrl    String      @map("image_url")
+  imageSource ImageSource @default(PLACEHOLDER) @map("image_source")
+  description String?
+  isAvailable Boolean     @default(true) @map("is_available")
+  createdAt   DateTime    @default(now()) @map("created_at")
+  updatedAt   DateTime    @updatedAt @map("updated_at")
+
+  category   Category    @relation(fields: [categoryId], references: [id])
+  orderItems OrderItem[]
+
+  @@index([isAvailable, categoryId])
+  @@index([searchName])
+  @@map("products")
+}
+
+model Order {
+  id                   String        @id @default(cuid())
+  orderNumber          String        @unique @map("order_number")
+  idempotencyKey       String?       @unique @map("idempotency_key")
+  userId               String        @map("user_id")
+  customerNameSnapshot String        @map("customer_name_snapshot")
+  phoneSnapshot        String        @map("phone_snapshot")
+  customerNote         String?       @map("customer_note")
+  status               OrderStatus   @default(PLACED)
+  subtotalPaise        Int           @map("subtotal_paise")
+  totalPaise           Int           @map("total_paise")
+  paymentStatus        PaymentStatus @default(UNPAID) @map("payment_status")
+  scheduledFor         DateTime?     @map("scheduled_for")
+  receiptNumber        String?       @unique @map("receipt_number")
+  version              Int           @default(1)
+  createdAt            DateTime      @default(now()) @map("created_at")
+  updatedAt            DateTime      @updatedAt @map("updated_at")
+
+  user     User         @relation(fields: [userId], references: [id])
+  items    OrderItem[]
+  events   OrderEvent[]
+  payments Payment[]
+
+  @@index([status, createdAt])
+  @@index([userId, createdAt])
+  @@index([scheduledFor])
+  @@map("orders")
+}
+
+model OrderItem {
+  id             String  @id @default(cuid())
+  orderId        String  @map("order_id")
+  productId      String? @map("product_id")
+  nameSnapshot   String  @map("name_snapshot")
+  unitSnapshot   String  @map("unit_snapshot")
+  unitPricePaise Int     @map("unit_price_paise")
+  quantity       Int
+  lineTotalPaise Int     @map("line_total_paise")
+  isUnavailable  Boolean @default(false) @map("is_unavailable")
+
+  order   Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([orderId])
+  @@map("order_items")
+}
+
+model OrderEvent {
+  id         String       @id @default(cuid())
+  orderId    String       @map("order_id")
+  actorId    String?      @map("actor_id")
+  actorRole  Role?        @map("actor_role")
+  fromStatus OrderStatus? @map("from_status")
+  toStatus   OrderStatus? @map("to_status")
+  note       String?
+  createdAt  DateTime     @default(now()) @map("created_at")
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  actor User? @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([orderId, createdAt])
+  @@map("order_events")
+}
+
+model Payment {
+  id             String        @id @default(cuid())
+  orderId        String        @map("order_id")
+  method         PaymentMethod
+  amountPaise    Int           @map("amount_paise")
+  status         PaymentStatus @default(UNPAID)
+  utrReference   String?       @map("utr_reference")
+  verifiedById   String?       @map("verified_by_id")
+  verifiedAt     DateTime?     @map("verified_at")
+  adjustmentNote String?       @map("adjustment_note")
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+
+  order      Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  verifiedBy User? @relation("VerifiedPayments", fields: [verifiedById], references: [id], onDelete: SetNull)
+
+  @@index([orderId])
+  @@map("payments")
+}
+
+model StoreSettings {
+  id           String   @id @default("singleton")
+  storeName    String   @map("store_name")
+  address      String
+  phone        String   @default("")
+  openTime     String   @default("06:00") @map("open_time")
+  closeTime    String   @default("23:00") @map("close_time")
+  timezone     String   @default("Asia/Kolkata")
+  manualClosed Boolean  @default(false) @map("manual_closed")
+  upiId        String?  @map("upi_id")
+  pickupNote   String?  @map("pickup_note")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@map("store_settings")
+}
+
+model PushSubscription {
+  id            String    @id @default(cuid())
+  userId        String    @map("user_id")
+  endpoint      String    @unique
+  p256dh        String
+  auth          String
+  createdAt     DateTime  @default(now()) @map("created_at")
+  lastSuccessAt DateTime? @map("last_success_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("push_subscriptions")
+}
