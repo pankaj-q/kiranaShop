@@ -5,6 +5,7 @@ import { useToast } from '../state/toast'
 import type { Order, Product } from '../lib/types'
 import { money, formatDate } from '../lib/api'
 import { ApiError } from '../lib/api'
+import NumberedList from '../components/NumberedList'
 
 type QuoteLine = {
   productId?: string
@@ -187,7 +188,7 @@ export default function OwnerOrderDetail() {
       {order.rawList && (
         <div className="card">
           <h2>Aapki list</h2>
-          <p style={{ whiteSpace: 'pre-wrap', margin: 0 }}>{order.rawList}</p>
+          <NumberedList text={order.rawList} />
         </div>
       )}
       </div>

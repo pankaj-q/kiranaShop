@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { api } from '../lib/api'
+import { api, ApiError } from '../lib/api'
 import { useToast } from '../state/toast'
 import type { Order, PaymentOptions, Bill, Receipt } from '../lib/types'
 import { money, formatDate } from '../lib/api'
-import { ApiError } from '../lib/api'
+import NumberedList from '../components/NumberedList'
 import { X } from 'lucide-react'
 
 const statusLabel: Record<string, string> = {
@@ -107,7 +107,7 @@ export default function OrderDetail() {
         {order.rawList && (
           <div style={{ marginTop: 12, padding: 10, background: 'var(--surface-2)', borderRadius: 8 }}>
             <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)', marginBottom: 4 }}>Aapki list</div>
-            <div style={{ whiteSpace: 'pre-wrap' }}>{order.rawList}</div>
+            <NumberedList text={order.rawList} />
           </div>
         )}
         {order.billNote && <p style={{ marginTop: 8 }}>Note: {order.billNote}</p>}

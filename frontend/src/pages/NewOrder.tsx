@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { api } from '../lib/api'
+import { api, ApiError } from '../lib/api'
 import { useToast } from '../state/toast'
-import { ApiError } from '../lib/api'
+import NumberedList, { splitList } from '../components/NumberedList'
 import { Send } from 'lucide-react'
 
 export default function NewOrder() {
@@ -47,6 +47,12 @@ export default function NewOrder() {
             onChange={(e) => setListText(e.target.value)}
             required
           />
+          {splitList(listText).length > 0 && (
+            <div style={{ marginTop: 8, padding: 10, background: 'var(--surface-2)', borderRadius: 8 }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)', marginBottom: 4 }}>Preview</div>
+              <NumberedList text={listText} />
+            </div>
+          )}
         </div>
         <div>
           <label className="label">Note (optional)</label>
