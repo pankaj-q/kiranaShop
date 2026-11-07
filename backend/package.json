@@ -17,7 +17,7 @@
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
     "db:seed": "prisma db seed",
-    "test": "NODE_ENV=test VAPID_PUBLIC_KEY= VAPID_PRIVATE_KEY= DATABASE_URL=${TEST_DATABASE_URL:-postgresql://majit:majit@localhost:5433/majitkirana_test?schema=public} SESSION_SECRET=${TEST_SESSION_SECRET:-test-session-secret-32-characters} node --import tsx --test --test-concurrency=1 src/tests/*.test.ts",
+    "test": "NODE_ENV=test OTP_PROVIDER=memory VAPID_PUBLIC_KEY= VAPID_PRIVATE_KEY= DATABASE_URL=${TEST_DATABASE_URL:-postgresql://majit:majit@localhost:5433/majitkirana_test?schema=public} SESSION_SECRET=${TEST_SESSION_SECRET:-test-session-secret-32-characters} node --import tsx --test --test-concurrency=1 src/tests/*.test.ts",
     "test:prepare": "DATABASE_URL=${TEST_DATABASE_URL:-postgresql://majit:majit@localhost:5433/majitkirana_test?schema=public} prisma migrate deploy"
   },
   "dependencies": {

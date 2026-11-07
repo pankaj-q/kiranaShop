@@ -15,6 +15,10 @@ enum Role {
   OWNER
 }
 
+enum OtpPurpose {
+  CUSTOMER_LOGIN
+}
+
 enum OrderStatus {
   REQUESTED
   PLACED
@@ -76,6 +80,25 @@ model Session {
   @@index([userId])
   @@index([expiresAt])
   @@map("sessions")
+}
+
+model OtpChallenge {
+  id                String     @id @default(cuid())
+  phone             String
+  codeHash          String     @map("code_hash")
+  purpose           OtpPurpose @default(CUSTOMER_LOGIN)
+  attempts          Int        @default(0)
+  maxAttempts       Int        @default(5) @map("max_attempts")
+  expiresAt         DateTime   @map("expires_at")
+  consumedAt        DateTime?  @map("consumed_at")
+  requestIp         String?    @map("request_ip")
+  provider          String?
+  providerMessageId String?    @map("provider_message_id")
+  createdAt         DateTime   @default(now()) @map("created_at")
+
+  @@index([phone, createdAt])
+  @@index([expiresAt])
+  @@map("otp_challenges")
 }
 
 model Category {

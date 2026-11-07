@@ -60,16 +60,16 @@ npm test
 - Tests **refuse to run** unless the database name contains `test`.
 - They truncate only the test database before and after the run.
 - Override with `TEST_DATABASE_URL` or `TEST_SESSION_SECRET` if needed.
-- Currently 18 tests (14 API integration + 4 IST/date unit); `npm test` is
-  sequential by design.
+- Currently 20 tests (16 API integration + 4 IST/date unit); `npm test` is
+  sequential by design and sets `OTP_PROVIDER=memory` for the OTP tests.
 
 ## Layout
 
 ```
 docs/
-  otp-design.md            OTP login design (not implemented yet)
+  otp-design.md            OTP login design + Phase 1 implementation notes
 prisma/
-  schema.prisma            10 models, 5 enums
+  schema.prisma            11 models, 6 enums
   migrations/              SQL migrations
   catalogue.ts             starter catalogue (216 SKUs, rupee prices)
   seed.ts                  store + owner + catalogue (idempotent)
@@ -83,7 +83,7 @@ src/
   middleware/
     requestLogger.ts       request id + one log line per request
     error.ts               AppError, 404, central error handler
-    rateLimit.ts           per-customer order-creation limiter
+    rateLimit.ts           per-customer order + per-IP OTP limiters
   tests/
     api.test.ts            end-to-end API integration tests
     ist.test.ts            IST opening-hours/date tests
@@ -99,6 +99,7 @@ src/
 |---|---|
 | users | customer + owner accounts, phone unique, scrypt password |
 | sessions | opaque session tokens (hashed), expiry |
+| otp_challenges | hashed OTP codes, attempts, expiry, single-use |
 | categories | catalogue categories |
 | products | 216 starter SKUs, aliases[] for chini/tel search, image URL |
 | orders | order number, idempotency key, raw list, bill note, snapshots, status, paise totals |
@@ -112,20 +113,39 @@ Money is integer **paise**. Timestamps are UTC; business rules use `Asia/Kolkata
 
 ## Auth
 
-> **OTP login is designed but not implemented yet.** See
-> [`docs/otp-design.md`](docs/otp-design.md) for the full design, provider/cost
-> options and open decisions. Until then, `POST /customer/session` is a
-> temporary name+phone shortcut (currently enabled in all environments) and must
-> be disabled before public launch.
+Customer login uses a 6-digit OTP. The owner still logs in with phone + password.
 
 | Endpoint | Purpose |
 |---|---|
 | `POST /api/v1/admin/login` | Owner login (`login` = phone, `password`) |
 | `POST /api/v1/admin/logout` | Owner logout |
 | `GET /api/v1/admin/me` | Current owner |
-| `POST /api/v1/customer/session` | Temporary customer session (`name`, `phone`; no OTP yet) |
+| `POST /api/v1/customer/otp/request` | Send a code (`phone`); response is the same for new and existing numbers |
+| `POST /api/v1/customer/otp/verify` | Verify `phone`, `code`, optional `name`; sets the session cookie |
+| `POST /api/v1/customer/session` | Legacy name+phone shortcut (tests/frontend migration only) |
 | `POST /api/v1/customer/logout` | Customer logout |
 | `GET /api/v1/customer/me` | Current customer |
+
+OTP rules:
+
+- 6-digit code, stored as an HMAC-SHA256 hash, 5-minute TTL, single use.
+- Maximum 5 attempts per code; wrong and expired codes both return `OTP_INVALID`.
+- Resend cooldown 60 seconds; per-phone 5/hour and 10 per rolling 24 hours;
+  global cap 500 per rolling 24 hours.
+- Per-IP limits: **30 requests/hour** and **30 verifies/15 minutes**.
+- New customers must send `name` on verify (`NAME_REQUIRED` otherwise); existing
+  customers reuse their saved name and may update it.
+- The owner phone is blocked on the customer flow (`PHONE_NOT_ALLOWED`).
+- Development uses `OTP_PROVIDER=console` (prints the code to the server log);
+  tests use `memory`. Production requires a real SMS/WhatsApp provider. Until one
+  is configured, production OTP endpoints return `503 OTP_NOT_CONFIGURED`.
+- `OTP_HASH_SECRET` defaults to `SESSION_SECRET`; use a separate random value in
+  production.
+
+See [`docs/otp-design.md`](docs/otp-design.md) for the full design, provider
+options/cost and the remaining open decisions. The legacy
+`POST /customer/session` endpoint stays enabled for now but must be disabled
+before public launch.
 
 Sessions are opaque 32-byte tokens, stored as SHA-256 hashes in `sessions`, sent
 in the `mk_session` cookie (HttpOnly, SameSite=Lax in development, SameSite=None
@@ -455,4 +475,4 @@ at `/livez` so Neon can auto-suspend and stay within the free compute hours; use
 B1 skeleton (done) → B2 database (done) → B3 auth (done) → B4 catalogue (done) →
 B5 cart/pricing (done) → B6 structured orders (done) → B6.5 text-list flow (done) →
 B7 payments (done) → B8 receipts/push (done) → B9 tests & seed (done) →
-OTP login design (proposed) → OTP implementation → B10 deployment.
+OTP login Phase 1 (done) → OTP real providers + enforcement → B10 deployment.

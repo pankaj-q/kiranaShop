@@ -12,6 +12,14 @@ const envSchema = z.object({
   VAPID_PUBLIC_KEY: z.string().optional(),
   VAPID_PRIVATE_KEY: z.string().optional(),
   VAPID_SUBJECT: z.string().optional(),
+  OTP_PROVIDER: z.enum(['console', 'memory', 'msg91', 'fast2sms', 'none']).optional(),
+  OTP_TTL_SECONDS: z.coerce.number().int().min(60).max(3600).default(300),
+  OTP_MAX_ATTEMPTS: z.coerce.number().int().min(1).max(10).default(5),
+  OTP_RESEND_COOLDOWN_SECONDS: z.coerce.number().int().min(0).max(600).default(60),
+  OTP_MAX_PER_PHONE_HOUR: z.coerce.number().int().min(1).default(5),
+  OTP_MAX_PER_PHONE_DAY: z.coerce.number().int().min(1).default(10),
+  OTP_GLOBAL_DAILY_CAP: z.coerce.number().int().min(1).default(500),
+  OTP_HASH_SECRET: z.string().min(16).optional(),
 })
 
 const parsed = envSchema.safeParse(process.env)
@@ -35,4 +43,13 @@ export const config = Object.freeze({
   vapidPublicKey: parsed.data.VAPID_PUBLIC_KEY || null,
   vapidPrivateKey: parsed.data.VAPID_PRIVATE_KEY || null,
   vapidSubject: parsed.data.VAPID_SUBJECT || 'mailto:owner@majitkirana.example',
+  otpProvider:
+    parsed.data.OTP_PROVIDER ?? (parsed.data.NODE_ENV === 'production' ? 'none' : 'console'),
+  otpHashSecret: parsed.data.OTP_HASH_SECRET || parsed.data.SESSION_SECRET,
+  otpTtlSeconds: parsed.data.OTP_TTL_SECONDS,
+  otpMaxAttempts: parsed.data.OTP_MAX_ATTEMPTS,
+  otpResendCooldownSeconds: parsed.data.OTP_RESEND_COOLDOWN_SECONDS,
+  otpMaxPerPhoneHour: parsed.data.OTP_MAX_PER_PHONE_HOUR,
+  otpMaxPerPhoneDay: parsed.data.OTP_MAX_PER_PHONE_DAY,
+  otpGlobalDailyCap: parsed.data.OTP_GLOBAL_DAILY_CAP,
 })

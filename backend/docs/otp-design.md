@@ -1,8 +1,11 @@
 # OTP Login — Design (not implemented yet)
 
-Status: **design for review**. The current customer login (`POST /customer/session`
-with name + phone) is still active in all environments today; it is a temporary
-shortcut and must be replaced before public launch.
+Status: **Phase 1 implemented.** The `OtpChallenge` table, request/verify
+endpoints, console and memory senders, hashed codes, attempts, TTL, single-use
+and per-phone/IP/global limits are live. SMS/WhatsApp providers (Phase 2/3) and
+the final production enforcement of `OTP_REQUIRED` (Phase 4) are still pending
+the open decisions below. The legacy `POST /customer/session` endpoint remains
+enabled for tests and frontend migration.
 
 ## Goal
 
@@ -207,7 +210,7 @@ Rules:
 |---|---|---|
 | Resend to same phone | 1 per 60 seconds | DB (`last challenge`) |
 | Same phone | 5 per hour, 10 per day | DB counts |
-| Same IP | 10 per hour, 30 per day | `express-rate-limit` |
+| Same IP (request) | 30 per hour | `express-rate-limit` |\n| Same IP (verify) | 30 per 15 minutes | `express-rate-limit` |
 | Verify attempts | 5 per challenge | DB row |
 | Global sends | 300–500 per day | DB count / in-memory counter |
 | Owner login | existing 10/min per IP | `express-rate-limit` |

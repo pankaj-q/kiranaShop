@@ -1,7 +1,8 @@
 import { Router } from 'express'
 import { rateLimit } from 'express-rate-limit'
 import { getAuth, requireCustomer, requireOwner } from '../../middleware/auth.js'
-import { customerSessionSchema, ownerLoginSchema } from './schemas.js'
+import { otpRequestLimiter, otpVerifyLimiter } from '../../middleware/rateLimit.js'
+import { customerSessionSchema, otpRequestSchema, otpVerifySchema, ownerLoginSchema } from './schemas.js'
 import {
   clearSessionCookie,
   loginCustomer,
@@ -9,6 +10,7 @@ import {
   logoutSession,
   setSessionCookie,
 } from './service.js'
+import { requestLoginOtp, verifyLoginOtp } from './otp/service.js'
 
 const authLimiter = rateLimit({
   windowMs: 60 * 1000,
@@ -45,6 +47,19 @@ authRoutes.get('/admin/me', requireOwner, (_req, res) => {
 authRoutes.post('/customer/session', authLimiter, async (req, res) => {
   const body = customerSessionSchema.parse(req.body)
   const { token, expiresAt, user } = await loginCustomer(body.name, body.phone)
+
+  setSessionCookie(res, token, expiresAt)
+  res.json({ data: { user } })
+})
+
+authRoutes.post('/customer/otp/request', otpRequestLimiter, async (req, res) => {
+  const body = otpRequestSchema.parse(req.body)
+  res.json({ data: await requestLoginOtp(body.phone, req.ip) })
+})
+
+authRoutes.post('/customer/otp/verify', otpVerifyLimiter, async (req, res) => {
+  const body = otpVerifySchema.parse(req.body)
+  const { token, expiresAt, user } = await verifyLoginOtp(body.phone, body.code, body.name)
 
   setSessionCookie(res, token, expiresAt)
   res.json({ data: { user } })

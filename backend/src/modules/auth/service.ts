@@ -23,6 +23,8 @@ function toPublicUser(user: PublicUser): PublicUser {
   return { id: user.id, name: user.name, phone: user.phone, role: user.role }
 }
 
+export { toPublicUser }
+
 export function normalizePhone(input: string) {
   const digits = input.replace(/\D/g, '')
   return digits.length === 12 && digits.startsWith('91') ? digits.slice(2) : digits
@@ -58,6 +60,8 @@ async function createSession(userId: string) {
 
   return { token, expiresAt }
 }
+
+export { createSession }
 
 export async function getSession(token: string) {
   const session = await prisma.session.findUnique({
@@ -97,16 +101,29 @@ export async function loginCustomer(name: string, rawPhone: string) {
     throw new AppError(400, 'INVALID_PHONE', 'Sahi mobile number daalein')
   }
 
+  const user = await upsertCustomer(phone, name)
+  const session = await createSession(user.id)
+  return { ...session, user: toPublicUser(user) }
+}
+
+/** Create or update a customer. New customers must supply a name. */
+export async function upsertCustomer(phone: string, name?: string) {
   const existing = await prisma.user.findUnique({ where: { phone } })
 
   if (existing?.role === 'OWNER') {
     throw new AppError(403, 'PHONE_NOT_ALLOWED', 'Yeh number use nahi ho sakta')
   }
 
-  const user = existing
-    ? await prisma.user.update({ where: { id: existing.id }, data: { name } })
-    : await prisma.user.create({ data: { name, phone, role: 'CUSTOMER' } })
+  if (existing) {
+    if (name && name !== existing.name) {
+      return prisma.user.update({ where: { id: existing.id }, data: { name } })
+    }
+    return existing
+  }
 
-  const session = await createSession(user.id)
-  return { ...session, user: toPublicUser(user) }
+  if (!name) {
+    throw new AppError(400, 'NAME_REQUIRED', 'Apna naam likhein')
+  }
+
+  return prisma.user.create({ data: { name, phone, role: 'CUSTOMER' } })
 }

@@ -4,6 +4,7 @@ import request from 'supertest'
 import { app } from '../app.js'
 import { prisma } from '../db.js'
 import { hashPassword } from '../lib/password.js'
+import { clearOtpCodes, lastOtpCode } from '../modules/auth/otp/sender.js'
 
 const databaseUrl = process.env.DATABASE_URL ?? ''
 
@@ -38,13 +39,14 @@ let receiptNumber = ''
 
 async function resetDatabase() {
   await prisma.$executeRawUnsafe(
-    'TRUNCATE TABLE push_subscriptions, payments, order_events, order_items, orders, products, categories, sessions, users, store_settings RESTART IDENTITY CASCADE',
+    'TRUNCATE TABLE otp_challenges, push_subscriptions, payments, order_events, order_items, orders, products, categories, sessions, users, store_settings RESTART IDENTITY CASCADE',
   )
 }
 
 describe('MajitKirana API', () => {
   before(async () => {
     await resetDatabase()
+    clearOtpCodes()
 
     await prisma.storeSettings.create({
       data: {
@@ -110,6 +112,103 @@ describe('MajitKirana API', () => {
       .post('/api/v1/admin/login')
       .send({ login: OWNER_PHONE, password: 'wrong-password' })
       .expect(401)
+  })
+
+  it('logs in a customer with an OTP', async () => {
+    const phone = '9876543220'
+    const agent = request.agent(app)
+
+    const sent = await agent.post('/api/v1/customer/otp/request').send({ phone }).expect(200)
+    assert.equal(sent.body.data.sent, true)
+    assert.equal(sent.body.data.expiresInSeconds, 300)
+    assert.equal(sent.body.data.retryAfterSeconds, 60)
+
+    const code = lastOtpCode(phone)
+    assert.match(code ?? '', /^\d{6}$/)
+
+    const verified = await agent
+      .post('/api/v1/customer/otp/verify')
+      .send({ phone, code, name: 'OTP Pankaj' })
+      .expect(200)
+
+    assert.equal(verified.body.data.user.role, 'CUSTOMER')
+    assert.equal(verified.body.data.user.name, 'OTP Pankaj')
+    assert.equal(verified.body.data.user.phone, phone)
+
+    const me = await agent.get('/api/v1/customer/me').expect(200)
+    assert.equal(me.body.data.user.phone, phone)
+
+    const replay = await agent.post('/api/v1/customer/otp/verify').send({ phone, code }).expect(400)
+    assert.equal(replay.body.error.code, 'OTP_INVALID')
+  })
+
+  it('enforces OTP cooldown, attempts, owner block and name rules', async () => {
+    // Resend cooldown.
+    const cooldownPhone = '9876543221'
+    await request(app).post('/api/v1/customer/otp/request').send({ phone: cooldownPhone }).expect(200)
+    const cooldown = await request(app)
+      .post('/api/v1/customer/otp/request')
+      .send({ phone: cooldownPhone })
+      .expect(429)
+    assert.equal(cooldown.body.error.code, 'RATE_LIMITED')
+
+    // Five wrong guesses lock the challenge.
+    const lockPhone = '9876543222'
+    await request(app).post('/api/v1/customer/otp/request').send({ phone: lockPhone }).expect(200)
+    const lockCode = lastOtpCode(lockPhone) ?? ''
+    const wrongCode = lockCode === '000000' ? '000001' : '000000'
+
+    for (let attempt = 1; attempt <= 4; attempt++) {
+      const wrong = await request(app)
+        .post('/api/v1/customer/otp/verify')
+        .send({ phone: lockPhone, code: wrongCode })
+        .expect(400)
+      assert.equal(wrong.body.error.code, 'OTP_INVALID')
+    }
+
+    const exhausted = await request(app)
+      .post('/api/v1/customer/otp/verify')
+      .send({ phone: lockPhone, code: wrongCode })
+      .expect(429)
+    assert.equal(exhausted.body.error.code, 'OTP_ATTEMPTS_EXCEEDED')
+
+    // New customers must share a name; existing customers do not.
+    const namePhone = '9876543223'
+    await request(app).post('/api/v1/customer/otp/request').send({ phone: namePhone }).expect(200)
+    const nameCode = lastOtpCode(namePhone) ?? ''
+
+    const missingName = await request(app)
+      .post('/api/v1/customer/otp/verify')
+      .send({ phone: namePhone, code: nameCode })
+      .expect(400)
+    assert.equal(missingName.body.error.code, 'NAME_REQUIRED')
+
+    await request(app)
+      .post('/api/v1/customer/otp/verify')
+      .send({ phone: namePhone, code: nameCode, name: 'Name Test' })
+      .expect(200)
+
+    // The owner number cannot use the customer OTP flow.
+    const ownerBlocked = await request(app)
+      .post('/api/v1/customer/otp/request')
+      .send({ phone: OWNER_PHONE })
+      .expect(403)
+    assert.equal(ownerBlocked.body.error.code, 'PHONE_NOT_ALLOWED')
+
+    // Expired codes are rejected like wrong codes.
+    const expiredPhone = '9876543224'
+    await request(app).post('/api/v1/customer/otp/request').send({ phone: expiredPhone }).expect(200)
+    const expiredCode = lastOtpCode(expiredPhone) ?? ''
+    await prisma.otpChallenge.updateMany({
+      where: { phone: expiredPhone },
+      data: { expiresAt: new Date(Date.now() - 1000) },
+    })
+
+    const expired = await request(app)
+      .post('/api/v1/customer/otp/verify')
+      .send({ phone: expiredPhone, code: expiredCode, name: 'Expired' })
+      .expect(400)
+    assert.equal(expired.body.error.code, 'OTP_INVALID')
   })
 
   it('creates a category and a product', async () => {

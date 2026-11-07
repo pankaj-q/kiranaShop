@@ -10,6 +10,18 @@ function customerKey(req: Request, res: Response) {
 
 const orderMessage = 'Bahut zyada orders bheje gaye. Thodi der baad try karein.'
 
+function rateLimitHandler(message: string) {
+  return (_req: Request, res: Response) => {
+    res.status(429).json({
+      error: {
+        code: 'RATE_LIMITED',
+        message,
+        requestId: res.locals.requestId as string | undefined,
+      },
+    })
+  }
+}
+
 /** Shared by structured and text-list order creation: 10 new orders per 10 minutes. */
 export const orderCreateLimiter = rateLimit({
   windowMs: 10 * 60 * 1000,
@@ -17,13 +29,31 @@ export const orderCreateLimiter = rateLimit({
   standardHeaders: 'draft-8',
   legacyHeaders: false,
   keyGenerator: customerKey,
-  handler: (_req, res) => {
-    res.status(429).json({
-      error: {
-        code: 'RATE_LIMITED',
-        message: orderMessage,
-        requestId: res.locals.requestId as string | undefined,
-      },
-    })
-  },
+  handler: rateLimitHandler(orderMessage),
+})
+
+const otpMessage = 'Bahut zyada OTP requests. Thodi der baad try karein.'
+
+function ipKey(req: Request) {
+  return ipKeyGenerator(req.ip ?? 'unknown')
+}
+
+/** Per-IP guard for requesting codes: 30 per hour. */
+export const otpRequestLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 30,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  keyGenerator: ipKey,
+  handler: rateLimitHandler(otpMessage),
+})
+
+/** Per-IP guard for verification guesses: 30 per 15 minutes. */
+export const otpVerifyLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 30,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  keyGenerator: ipKey,
+  handler: rateLimitHandler(otpMessage),
 })
