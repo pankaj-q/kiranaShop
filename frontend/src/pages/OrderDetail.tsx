@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { api, ApiError } from '../lib/api'
-import { useToast } from '../state/toast'
+import { useToast } from '../hooks/useToast'
 import type { Order, PaymentOptions, Bill, Receipt } from '../lib/types'
 import { money, formatDate } from '../lib/api'
 import NumberedList from '../components/NumberedList'
@@ -33,9 +33,9 @@ export default function OrderDetail() {
   const [editText, setEditText] = useState('')
   const [savingEdit, setSavingEdit] = useState(false)
 
-  const load = async () => {
+  const load = async (silent = false) => {
     if (!id) return
-    setLoading(true)
+    if (!silent) setLoading(true)
     try {
       const o = await api<Order>(`/orders/${id}`)
       setOrder(o)
@@ -47,12 +47,14 @@ export default function OrderDetail() {
     } catch (e) {
       toast.show((e as ApiError).message, 'error')
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
     }
   }
 
   useEffect(() => {
     load()
+    const timer = setInterval(() => load(true), 12000)
+    return () => clearInterval(timer)
   }, [id])
 
   const title = order?.rawList ? splitFirst(order.rawList) : order?.orderNumber ?? ''

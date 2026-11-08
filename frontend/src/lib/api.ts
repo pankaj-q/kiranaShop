@@ -26,7 +26,7 @@ export async function api<T = unknown>(
   })
 
   const text = await res.text()
-  let body: any = null
+  let body: { data?: T; error?: { code?: string; message?: string; details?: unknown }; raw?: string } | null = null
   if (text) {
     try {
       body = JSON.parse(text)

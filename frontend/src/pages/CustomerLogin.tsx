@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useAuth } from '../state/auth'
-import { useToast } from '../state/toast'
+import { useAuth } from '../hooks/useAuth'
+import { useToast } from '../hooks/useToast'
 import { ApiError } from '../lib/api'
 
 export default function CustomerLogin() {

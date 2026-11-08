@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../lib/api'
-import { useToast } from '../state/toast'
+import { useToast } from '../hooks/useToast'
 import type { Order } from '../lib/types'
 import { money, formatDate } from '../lib/api'
 

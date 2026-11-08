@@ -1,5 +1,5 @@
 import { Link, Outlet, useNavigate } from 'react-router-dom'
-import { useAuth } from '../state/auth'
+import { useAuth } from '../hooks/useAuth'
 import { LogOut, Store, User } from 'lucide-react'
 
 export default function Layout() {

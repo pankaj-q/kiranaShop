@@ -1,7 +1,9 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
-import { AuthProvider, useAuth } from './state/auth'
+import { AuthProvider } from './state/auth'
+import { useAuth } from './hooks/useAuth'
 import { ToastProvider } from './state/toast'
 import Layout from './components/Layout'
+import ErrorBoundary from './components/ErrorBoundary'
 import CustomerLogin from './pages/CustomerLogin'
 import CustomerHome from './pages/CustomerHome'
 import NewOrder from './pages/NewOrder'
@@ -28,7 +30,8 @@ function OwnerGuard({ children }: { children: React.ReactNode }) {
 
 export default function App() {
   return (
-    <AuthProvider>
+    <ErrorBoundary>
+      <AuthProvider>
       <ToastProvider>
         <BrowserRouter>
         <Routes>
@@ -97,5 +100,6 @@ export default function App() {
       </BrowserRouter>
       </ToastProvider>
     </AuthProvider>
+    </ErrorBoundary>
   )
 }

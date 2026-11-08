@@ -1,20 +1,9 @@
-import { createContext, useCallback, useContext, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { api } from '../lib/api'
 import type { User } from '../lib/types'
 
-type AuthState = {
-  user: User | null
-  loading: boolean
-  refresh: () => Promise<void>
-  loginOwner: (login: string, password: string) => Promise<User>
-  requestOtp: (phone: string) => Promise<{ sent: boolean; expiresInSeconds: number; retryAfterSeconds: number }>
-  verifyOtp: (phone: string, code: string, name?: string) => Promise<User>
-  legacyCustomerLogin: (name: string, phone: string) => Promise<User>
-  logout: () => Promise<void>
-}
-
-const Ctx = createContext<AuthState | null>(null)
+import { AuthContext } from './authContext'
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
@@ -79,14 +68,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [user])
 
   return (
-    <Ctx.Provider value={{ user, loading, refresh, loginOwner, requestOtp, verifyOtp, legacyCustomerLogin, logout }}>
+    <AuthContext.Provider value={{ user, loading, refresh, loginOwner, requestOtp, verifyOtp, legacyCustomerLogin, logout }}>
       {children}
-    </Ctx.Provider>
+    </AuthContext.Provider>
   )
 }
 
-export function useAuth() {
-  const v = useContext(Ctx)
-  if (!v) throw new Error('AuthProvider missing')
-  return v
-}

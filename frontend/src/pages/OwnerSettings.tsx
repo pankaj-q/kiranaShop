@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api } from '../lib/api'
-import { useToast } from '../state/toast'
+import { useToast } from '../hooks/useToast'
 import type { StoreSettings } from '../lib/types'
 import { ApiError } from '../lib/api'
 

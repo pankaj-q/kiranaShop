@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api } from '../lib/api'
-import { useToast } from '../state/toast'
+import { useToast } from '../hooks/useToast'
 import type { Product, Category } from '../lib/types'
 import { money } from '../lib/api'
 import { ApiError } from '../lib/api'
@@ -24,14 +24,13 @@ export default function OwnerCatalogue() {
   const load = async () => {
     setLoading(true)
     try {
-      const [p, c] = await Promise.all([
+      const [p, cats] = await Promise.all([
         api<{ items: Product[] }>('/admin/products?limit=200'),
-        api<{ items?: Category[]; data?: Category[] }>('/admin/categories').catch(() => ({ items: [] })),
+        api<Category[]>('/admin/categories'),
       ])
       setProducts(p.items)
-      const cats = (c as any).items ?? (c as any).data ?? c
-      setCategories(Array.isArray(cats) ? cats : [])
-      if (!form.categoryId && Array.isArray(cats) && cats.length) {
+      setCategories(cats)
+      if (!form.categoryId && cats.length) {
         setForm((f) => ({ ...f, categoryId: cats[0].id }))
       }
     } catch (e) {

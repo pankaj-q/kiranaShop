@@ -1,9 +1,9 @@
-import { createContext, useCallback, useContext, useState } from 'react'
+import { useCallback, useState } from 'react'
 import type { ReactNode } from 'react'
 
 type Toast = { id: number; message: string; kind: 'info' | 'error' }
 
-const Ctx = createContext<{ show: (message: string, kind?: 'info' | 'error') => void } | null>(null)
+import { ToastContext } from './toastContext'
 
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([])
@@ -13,7 +13,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 3500)
   }, [])
   return (
-    <Ctx.Provider value={{ show }}>
+    <ToastContext.Provider value={{ show }}>
       {children}
       <div className="toast-wrap">
         {toasts.map((t) => (
@@ -22,12 +22,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
           </div>
         ))}
       </div>
-    </Ctx.Provider>
+    </ToastContext.Provider>
   )
 }
 
-export function useToast() {
-  const v = useContext(Ctx)
-  if (!v) throw new Error('ToastProvider missing')
-  return v
-}

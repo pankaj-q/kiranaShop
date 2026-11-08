@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { api, ApiError } from '../lib/api'
-import { useToast } from '../state/toast'
+import { useToast } from '../hooks/useToast'
 import type { Order, Product } from '../lib/types'
 import { money, formatDate } from '../lib/api'
 import { ArrowLeft } from 'lucide-react'
@@ -29,9 +29,9 @@ export default function OwnerOrderDetail() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
 
-  const load = async () => {
+  const load = async (silent = false) => {
     if (!id) return
-    setLoading(true)
+    if (!silent) setLoading(true)
     try {
       const [o, p] = await Promise.all([
         api<Order>(`/admin/orders/${id}`),
@@ -43,12 +43,14 @@ export default function OwnerOrderDetail() {
     } catch (e) {
       toast.show((e as ApiError).message, 'error')
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
     }
   }
 
   useEffect(() => {
     load()
+    const timer = setInterval(() => load(true), 12000)
+    return () => clearInterval(timer)
   }, [id])
 
   const addProduct = (p: Product) => {

@@ -98,7 +98,7 @@ export type PaymentOptions = {
   amountDuePaise: number
   paymentStatus: PaymentStatus
   upi: { uri: string; qrDataUrl: string } | null
-  payments: any[]
+  payments: { id: string; status: PaymentStatus; utrReference: string | null; amountPaise: number }[]
 }
 
 export type Receipt = {
